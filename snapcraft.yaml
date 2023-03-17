@@ -1,0 +1,25 @@
+name: killport
+version: "0.1.0"
+summary: A CLI tool to kill processes using specified ports
+description: |
+  Killport is a command-line utility to find and kill processes listening on specified ports.
+  It is useful for freeing up ports when you need to start new services that require those ports.
+
+grade: stable
+confinement: classic
+base: core20
+
+parts:
+  killport:
+    plugin: rust
+    source: .
+    build-packages:
+      - build-essential
+      - pkg-config
+      - libssl-dev
+    stage-packages:
+      - ca-certificates
+
+apps:
+  killport:
+    command: bin/killport
