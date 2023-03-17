@@ -1,3 +1,8 @@
+//! This module provides functions for working with processes and inodes.
+//!
+//! It exposes a single public function `kill_processes_by_inode` that attempts to
+//! kill processes associated with a specified inode.
+
 use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
@@ -6,6 +11,14 @@ use std::io;
 use std::io::Error;
 use std::path::Path;
 
+/// Attempts to kill processes associated with the specified `target_inode`.
+///
+/// Returns a `Result` with `true` if any processes were killed, and an `Error`
+/// if the operation failed or if no processes were found associated with the inode.
+///
+/// # Arguments
+///
+/// * `target_inode` - A u64 value representing the target inode.
 pub fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
@@ -54,6 +67,11 @@ pub fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
     Ok(killed_any)
 }
 
+/// Recursively kills the process with the specified `pid` and its children.
+///
+/// # Arguments
+///
+/// * `pid` - An i32 value representing the process ID.
 fn kill_process_and_children(pid: i32) -> Result<(), std::io::Error> {
     let mut children_pids = Vec::new();
     collect_child_pids(pid, &mut children_pids)?;
@@ -67,6 +85,13 @@ fn kill_process_and_children(pid: i32) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+/// Collects the child process IDs for the specified `pid` and stores them in
+/// `child_pids`.
+///
+/// # Arguments
+///
+/// * `pid` - An i32 value representing the process ID.
+/// * `child_pids` - A mutable reference to a `Vec<i32>` where the child PIDs will be stored.
 fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io::Error> {
     let processes = procfs::process::all_processes().unwrap();
 
@@ -82,6 +107,11 @@ fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io
     Ok(())
 }
 
+/// Kills the process with the specified `pid`.
+///
+/// # Arguments
+///
+/// * `pid` - An i32 value representing the process ID.
 fn kill_process(pid: i32) -> Result<(), std::io::Error> {
     info!("Killing process with PID {}", pid);
     let pid = Pid::from_raw(pid);
