@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build deb package
+        run: cargo deb
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Install toml CLI
+        run: pip install toml-cli
+
+      - name: Get version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(toml get Cargo.toml package.version | tr -d '"')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "::set-output name=version::$VERSION"
+
+      - name: Check if release exists
+        id: check_release
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const version = "${{ steps.get_version.outputs.version }}";
+            const tag = `v${version}`;
+
+            let releaseExists = false;
+            try {
+              await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag,
+              });
+              releaseExists = true;
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            return { releaseExists };
+
+      - name: Create release and upload deb package
+        if: ${{ !steps.check_release.outputs.releaseExists }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          files: target/debian/killport_${{ steps.get_version.outputs.version }}_amd64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

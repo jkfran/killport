@@ -29,7 +29,7 @@ copyright = "Copyright (c) 2023, Francisco Jimenez Cabrera <jkfran@gmail.com>"
 depends = "$auto"
 section = "admin"
 priority = "optional"
-asset = [
+assets = [
   ["target/release/killport", "usr/bin/", "755"],
   ["README.md", "usr/share/doc/killport/", "644"],
   ["LICENSE", "usr/share/doc/killport/", "644"],
