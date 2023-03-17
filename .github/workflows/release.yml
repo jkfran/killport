@@ -1,5 +1,8 @@
 name: Release
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:
@@ -24,19 +27,12 @@ jobs:
       - name: Build deb package
         run: cargo deb
 
-      - name: Setup Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.x
-
-      - name: Install toml CLI
-        run: pip install toml-cli
-
-      - name: Get version from Cargo.toml
+      - name: Extract version from Cargo.toml
         id: get_version
         run: |
-          VERSION=$(toml get Cargo.toml package.version | tr -d '"')
+          VERSION=$(grep '^version =' Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"' | tr -d "\n")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Found version: $VERSION"
           echo "::set-output name=version::$VERSION"
 
       - name: Check if release exists
@@ -45,7 +41,7 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const version = "${{ steps.get_version.outputs.version }}";
+            const version = "${{ env.VERSION }}";
             const tag = `v${version}`;
 
             let releaseExists = false;
@@ -68,8 +64,8 @@ jobs:
         if: ${{ !steps.check_release.outputs.releaseExists }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: Release v${{ steps.get_version.outputs.version }}
-          files: target/debian/killport_${{ steps.get_version.outputs.version }}_amd64.deb
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          files: target/debian/killport_${{ env.VERSION }}_amd64.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
