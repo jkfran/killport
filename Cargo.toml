@@ -1,0 +1,36 @@
+[package]
+name = "killport"
+version = "0.1.0"
+authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
+edition = "2021"
+license = "MIT"
+description = "A command-line tool to easily kill processes running on a specified port."
+readme = "README.md"
+homepage = "https://github.com/jkfran/killport"
+repository = "https://github.com/jkfran/killport"
+keywords = ["cli", "port", "process", "kill", "linux"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+log = "0.4.17"
+env_logger = "0.10.0"
+clap-verbosity-flag = "2.0.0"
+procfs = "0.15.1"
+clap = { version = "4.1.8", features = ["derive"] }
+nix = "0.26.2"
+
+[dev-dependencies]
+assert_cmd = "2.0.10"
+tempfile = "3.4.0"
+
+[package.metadata.deb]
+maintainer = "Francisco Jimenez Cabrera <jkfran@gmail.com>"
+copyright = "Copyright (c) 2023, Francisco Jimenez Cabrera <jkfran@gmail.com>"
+depends = "$auto"
+section = "admin"
+priority = "optional"
+asset = [
+  ["target/release/killport", "usr/bin/", "755"],
+  ["README.md", "usr/share/doc/killport/", "644"],
+  ["LICENSE", "usr/share/doc/killport/", "644"],
+]
