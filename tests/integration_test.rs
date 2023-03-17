@@ -26,7 +26,7 @@ fn test_killport() {
         .expect("Failed to write mock_process.rs content");
 
     // Compile and run the mock process in the background.
-    let status = Command::new("rustc")
+    let status = std::process::Command::new("rustc")
         .arg(&mock_process_path)
         .arg("--out-dir")
         .arg(&tempdir_path)
@@ -35,7 +35,7 @@ fn test_killport() {
 
     assert!(status.success(), "Mock process compilation failed");
 
-    let mut mock_process = Command::new(tempdir_path.join("mock_process"))
+    let mut mock_process = std::process::Command::new(tempdir_path.join("mock_process"))
         .spawn()
         .expect("Failed to run the mock process");
 

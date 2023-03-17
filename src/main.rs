@@ -36,9 +36,9 @@ fn main() {
         match kill_port(port) {
             Ok(killed) => {
                 if killed {
-                    println!("Successfully killed processes using port {}.", port);
+                    println!("Successfully killed process listening on port {}", port);
                 } else {
-                    println!("No processes found using port {}.", port);
+                    println!("No processes found using port {}", port);
                 }
             }
             Err(err) => {
