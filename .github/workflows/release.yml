@@ -10,6 +10,16 @@ on:
 
 jobs:
   release:
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf
+          - arm-unknown-linux-gnueabihf
+          - powerpc64le-unknown-linux-gnu
+          - s390x-unknown-linux-gnu
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,13 +29,22 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
           override: true
 
-      - name: Install cargo-deb
-        run: cargo install cargo-deb
+      - name: Build target
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target ${{ matrix.target }}
 
-      - name: Build deb package
-        run: cargo deb
+      - name: Package binaries
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release          
+          tar czvf ../../../killport-${{ matrix.target }}.tar.gz killport
+          cd -
 
       - name: Extract version from Cargo.toml
         id: get_version
@@ -66,6 +85,6 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}
           name: Release v${{ env.VERSION }}
-          files: target/debian/killport_${{ env.VERSION }}_amd64.deb
+          files: 'killport*'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
