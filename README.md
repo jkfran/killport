@@ -1,15 +1,24 @@
 # killport
 
-`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux and macOS.
+`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux.
 
 ## Features
 
 - Kill processes by port number
 - Supports multiple port numbers
-- Cross-platform: Linux and macOS
 - Verbosity control
 
 ## Installation
+
+### Easiest Way
+
+Run the following command to automatically download and install `killport`:
+
+```sh
+curl -sL https://bit.ly/killport | sh
+```
+
+Don't forget to add `$HOME/.local/bin` to your `PATH` environment variable, if it's not already present.
 
 ### From Source
 
@@ -19,21 +28,23 @@
    ```sh
    git clone https://github.com/jkfran/killport.git
    ```
+
 3. Change to the killport directory:
 
    ```sh
-    cd killport
+   cd killport
    ```
+
 4. Build and install the binary:
 
    ```sh
-    cargo build --release
-    sudo cp target/release/killport /usr/local/bin/
+   cargo build --release
+   cp target/release/killport $HOME/.local/bin/
    ```
 
 ### Binary Releases
 
-// TODO
+You can download the binary releases for different architectures from the [releases page](https://github.com/jkfran/killport/releases) and manually install them.
 
 ## Usage
 
