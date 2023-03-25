@@ -1,8 +1,3 @@
-//! This module provides functions for working with processes and inodes.
-//!
-//! It exposes a single public function `kill_processes_by_inode` that attempts to
-//! kill processes associated with a specified inode.
-
 use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
@@ -10,6 +5,69 @@ use procfs::process::FDTarget;
 use std::io;
 use std::io::Error;
 use std::path::Path;
+
+/// Attempts to kill processes listening on the specified `port`.
+///
+/// Returns a `Result` with `true` if any processes were killed, `false` if no
+/// processes were found listening on the port, and an `Error` if the operation
+/// failed or the platform is unsupported.
+///
+/// # Arguments
+///
+/// * `port` - A u16 value representing the port number.
+pub fn kill_processes_by_port(port: u16) -> Result<bool, Error> {
+    let mut killed_any = false;
+
+    let target_inodes = find_target_inodes(port);
+
+    if !target_inodes.is_empty() {
+        for target_inode in target_inodes {
+            killed_any |= kill_processes_by_inode(target_inode)?;
+        }
+    }
+
+    Ok(killed_any)
+}
+
+/// Finds the inodes associated with the specified `port`.
+///
+/// Returns a `Vec` of inodes for both IPv4 and IPv6 connections.
+///
+/// # Arguments
+///
+/// * `port` - A u16 value representing the port number.
+#[cfg(target_os = "linux")]
+fn find_target_inodes(port: u16) -> Vec<u64> {
+    let tcp = procfs::net::tcp().unwrap();
+    let tcp6 = procfs::net::tcp6().unwrap();
+    let udp = procfs::net::udp().unwrap();
+    let udp6 = procfs::net::udp6().unwrap();
+    let mut target_inodes = Vec::new();
+
+    target_inodes.extend(
+        tcp.into_iter()
+            .filter(|tcp_entry| tcp_entry.local_address.port() == port)
+            .map(|tcp_entry| tcp_entry.inode),
+    );
+    target_inodes.extend(
+        tcp6.into_iter()
+            .filter(|tcp_entry| tcp_entry.local_address.port() == port)
+            .map(|tcp_entry| tcp_entry.inode),
+    );
+
+    target_inodes.extend(
+        udp.into_iter()
+            .filter(|udp_entry| udp_entry.local_address.port() == port)
+            .map(|udp_entry| udp_entry.inode),
+    );
+    target_inodes.extend(
+        udp6.into_iter()
+            .filter(|udp_entry| udp_entry.local_address.port() == port)
+            .map(|udp_entry| udp_entry.inode),
+    );
+
+    target_inodes
+}
 
 /// Attempts to kill processes associated with the specified `target_inode`.
 ///
@@ -19,7 +77,7 @@ use std::path::Path;
 /// # Arguments
 ///
 /// * `target_inode` - A u64 value representing the target inode.
-pub fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
+fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
 
