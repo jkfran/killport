@@ -20,7 +20,9 @@ jobs:
           - arm-unknown-linux-gnueabihf
           - powerpc64le-unknown-linux-gnu
           - s390x-unknown-linux-gnu
-    runs-on: ubuntu-latest
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
