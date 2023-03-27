@@ -5,20 +5,30 @@ set -e
 ARCH=$(uname -m)
 OS=$(uname)
 
-if [ "$OS" != "Linux" ]; then
-    echo "Error: This script only supports Linux systems."
-    exit 1
-fi
-
-case $ARCH in
-    aarch64) TARGET="aarch64-unknown-linux-gnu" ;;
-    arm*) TARGET="arm-unknown-linux-gnueabihf" ;;
-    armv7*) TARGET="armv7-unknown-linux-gnueabihf" ;;
-    i686) TARGET="i686-unknown-linux-gnu" ;;
-    powerpc64le) TARGET="powerpc64le-unknown-linux-gnu" ;;
-    s390x) TARGET="s390x-unknown-linux-gnu" ;;
-    x86_64) TARGET="x86_64-unknown-linux-gnu" ;;
-    *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
+case $OS in
+    Linux)
+        case $ARCH in
+            aarch64) TARGET="aarch64-unknown-linux-gnu" ;;
+            arm*) TARGET="arm-unknown-linux-gnueabihf" ;;
+            armv7*) TARGET="armv7-unknown-linux-gnueabihf" ;;
+            i686) TARGET="i686-unknown-linux-gnu" ;;
+            powerpc64le) TARGET="powerpc64le-unknown-linux-gnu" ;;
+            s390x) TARGET="s390x-unknown-linux-gnu" ;;
+            x86_64) TARGET="x86_64-unknown-linux-gnu" ;;
+            *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+    ;;
+    Darwin)
+        case $ARCH in
+            arm64) TARGET="aarch64-apple-darwin" ;;
+            x86_64) TARGET="x86_64-apple-darwin" ;;
+            *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+    ;;
+    *)
+        echo "Error: This script only supports Linux and macOS systems."
+        exit 1
+    ;;
 esac
 
 echo "Detected architecture: $TARGET"

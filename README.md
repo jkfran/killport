@@ -1,12 +1,13 @@
 # killport
 
-`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux.
+`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux and macOS.
 
 ## Features
 
 - Kill processes by port number
 - Supports multiple port numbers
 - Verbosity control
+- Works on Linux and macOS
 
 ## Installation
 
