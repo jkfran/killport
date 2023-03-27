@@ -34,6 +34,10 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
+      - name: Install cargo-deb
+        if: contains(matrix.target, 'linux')
+        run: cargo install cargo-deb
+
       - name: Build target
         uses: actions-rs/cargo@v1
         with:
@@ -44,8 +48,9 @@ jobs:
       - name: Package binaries
         shell: bash
         run: |
-          cd target/${{ matrix.target }}/release          
-          tar czvf ../../../killport-${{ matrix.target }}.tar.gz killport
+          cd target/${{ matrix.target }}/release
+          short_target=$(echo "${{ matrix.target }}" | sed 's/-unknown//')
+          tar czvf ../../../killport-${short_target}.tar.gz killport
           cd -
 
       - name: Extract version from Cargo.toml
@@ -81,7 +86,13 @@ jobs:
 
             return { releaseExists };
 
-      - name: Create release and upload deb package
+      - name: Build and package .deb for Linux targets
+        if: contains(matrix.target, 'linux')
+        run: |
+          short_target=$(echo "${{ matrix.target }}" | sed 's/-unknown//')
+          cargo deb --target ${{ matrix.target }} --output killport-${short_target}.deb
+
+      - name: Create release and upload assets
         if: ${{ !steps.check_release.outputs.releaseExists }}
         uses: softprops/action-gh-release@v1
         with:
@@ -90,3 +101,19 @@ jobs:
           files: 'killport*'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CRATES_IO }}
