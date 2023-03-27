@@ -8,13 +8,13 @@ OS=$(uname)
 case $OS in
     Linux)
         case $ARCH in
-            aarch64) TARGET="aarch64-unknown-linux-gnu" ;;
-            arm*) TARGET="arm-unknown-linux-gnueabihf" ;;
-            armv7*) TARGET="armv7-unknown-linux-gnueabihf" ;;
-            i686) TARGET="i686-unknown-linux-gnu" ;;
-            powerpc64le) TARGET="powerpc64le-unknown-linux-gnu" ;;
-            s390x) TARGET="s390x-unknown-linux-gnu" ;;
-            x86_64) TARGET="x86_64-unknown-linux-gnu" ;;
+            aarch64) TARGET="aarch64-linux-gnu" ;;
+            arm*) TARGET="arm-linux-gnueabihf" ;;
+            armv7*) TARGET="armv7-linux-gnueabihf" ;;
+            i686) TARGET="i686-linux-gnu" ;;
+            powerpc64le) TARGET="powerpc64le-linux-gnu" ;;
+            s390x) TARGET="s390x-linux-gnu" ;;
+            x86_64) TARGET="x86_64-linux-gnu" ;;
             *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
         esac
     ;;

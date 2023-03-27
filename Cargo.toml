@@ -1,6 +1,6 @@
 [package]
 name = "killport"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -28,6 +28,9 @@ libc = "0.2"
 [dev-dependencies]
 assert_cmd = "2.0.10"
 tempfile = "3.4.0"
+
+[build-dependencies]
+cargo-deb = "1.42.2"
 
 [package.metadata.deb]
 maintainer = "Francisco Jimenez Cabrera <jkfran@gmail.com>"
