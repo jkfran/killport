@@ -34,10 +34,6 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
-      - name: Install cargo-deb
-        if: contains(matrix.target, 'linux')
-        run: cargo install cargo-deb
-
       - name: Build target
         uses: actions-rs/cargo@v1
         with:
@@ -85,12 +81,6 @@ jobs:
             }
 
             return { releaseExists };
-
-      - name: Build and package .deb for Linux targets
-        if: contains(matrix.target, 'linux')
-        run: |
-          short_target=$(echo "${{ matrix.target }}" | sed 's/-unknown//')
-          cargo deb --target ${{ matrix.target }} --output killport-${short_target}.deb
 
       - name: Create release and upload assets
         if: ${{ !steps.check_release.outputs.releaseExists }}
