@@ -21,27 +21,13 @@ curl -sL https://bit.ly/killport | sh
 
 Don't forget to add `$HOME/.local/bin` to your `PATH` environment variable, if it's not already present.
 
-### From Source
+### Using cargo
 
-1. Install Rust: Follow the [official Rust installation guide](https://www.rust-lang.org/tools/install) to set up Rust on your system.
-2. Clone the repository:
+Run the following command to install killport using cargo. If you don't have cargo, follow the [official Rust installation guide](https://www.rust-lang.org/tools/install).
 
-   ```sh
-   git clone https://github.com/jkfran/killport.git
-   ```
-
-3. Change to the killport directory:
-
-   ```sh
-   cd killport
-   ```
-
-4. Build and install the binary:
-
-   ```sh
-   cargo build --release
-   cp target/release/killport $HOME/.local/bin/
-   ```
+```sh
+cargo install killport
+```
 
 ### Binary Releases
 
