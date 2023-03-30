@@ -41,7 +41,7 @@ jobs:
 
   release:
     needs: check_release
-    if: ${{ !needs.check_release.outputs.releaseExists }}
+    if: ${{ needs.check_release.outputs.releaseExists == 'false' }}
     strategy:
       matrix:
         target:
