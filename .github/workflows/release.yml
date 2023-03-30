@@ -40,6 +40,7 @@ jobs:
             return { releaseExists };
 
   release:
+    needs: check_release
     if: ${{ !needs.check_release.outputs.releaseExists }}
     strategy:
       matrix:
@@ -89,7 +90,6 @@ jobs:
           echo "::set-output name=version::$VERSION"
 
       - name: Create release and upload assets
-        if: ${{ !steps.check_release.outputs.releaseExists }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ env.VERSION }}
@@ -99,7 +99,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    needs: [release, check_release]
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
