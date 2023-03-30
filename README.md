@@ -11,7 +11,16 @@
 
 ## Installation
 
-### Easiest Way
+### Using Homebrew
+
+Run the following command to install killport using Homebrew.
+
+```sh
+brew tap jkfran/killport
+brew install killport
+```
+
+### Using install.sh
 
 Run the following command to automatically download and install `killport`:
 
