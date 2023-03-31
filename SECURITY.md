@@ -17,10 +17,14 @@ We take security seriously and value the input of security researchers and our u
 
 Please follow these steps to report a vulnerability:
 
-1. Email your findings to [jkfran@gmail.com]. If possible, use a descriptive subject line, such as "Security Vulnerability in killport v0.7.0."
-2. Provide a detailed description of the vulnerability, including steps to reproduce the issue, affected components, and potential impact.
-3. If you have a suggested patch or workaround, please include it in your report. However, this is not required.
-4. We will acknowledge receipt of your report within 48 hours and keep you updated on our progress in resolving the issue.
+1. Go to the [GitHub Security tab](https://github.com/jkfran/killport/security/advisories) in the killport repository.
+2. Click on "New draft advisory."
+3. Provide a descriptive title for the advisory, such as "Security Vulnerability in killport v0.7.0."
+4. Provide a detailed description of the vulnerability, including steps to reproduce the issue, affected components, and potential impact.
+5. If you have a suggested patch or workaround, please include it in the report. However, this is not required.
+6. Submit the draft advisory.
+
+We will acknowledge receipt of your report within 48 hours and keep you updated on our progress in resolving the issue through the advisory discussion.
 
 We kindly ask you to:
 
@@ -30,3 +34,4 @@ We kindly ask you to:
 We appreciate your help in making killport a more secure and reliable project. In recognition of your contribution, we will credit you in our security advisory and release notes once the issue has been resolved.
 
 Thank you for your support and dedication to the security of the killport project.
+
