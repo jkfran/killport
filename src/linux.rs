@@ -1,3 +1,5 @@
+use crate::KillPortSigSpecOptions;
+
 use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
@@ -15,14 +17,15 @@ use std::path::Path;
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
-pub fn kill_processes_by_port(port: u16) -> Result<bool, Error> {
+/// * `signal` - A enum value representing the signal type.
+pub fn kill_processes_by_port(port: u16, signal: KillPortSigSpecOptions) -> Result<bool, Error> {
     let mut killed_any = false;
 
     let target_inodes = find_target_inodes(port);
 
     if !target_inodes.is_empty() {
         for target_inode in target_inodes {
-            killed_any |= kill_processes_by_inode(target_inode)?;
+            killed_any |= kill_processes_by_inode(target_inode, signal)?;
         }
     }
 
@@ -77,7 +80,8 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 /// # Arguments
 ///
 /// * `target_inode` - A u64 value representing the target inode.
-fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
+/// * `signal` - A enum value representing the signal type.
+fn kill_processes_by_inode(target_inode: u64, signal: KillPortSigSpecOptions) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
 
@@ -100,7 +104,7 @@ fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
                             }
                         }
 
-                        match kill_process_and_children(process.pid) {
+                        match kill_process_and_children(process.pid, signal) {
                             Ok(_) => {
                                 killed_any = true;
                             }
@@ -130,15 +134,16 @@ fn kill_processes_by_inode(target_inode: u64) -> Result<bool, Error> {
 /// # Arguments
 ///
 /// * `pid` - An i32 value representing the process ID.
-fn kill_process_and_children(pid: i32) -> Result<(), std::io::Error> {
+/// * `signal` - A enum value representing the signal type.
+fn kill_process_and_children(pid: i32, signal: KillPortSigSpecOptions) -> Result<(), std::io::Error> {
     let mut children_pids = Vec::new();
     collect_child_pids(pid, &mut children_pids)?;
 
     for child_pid in children_pids {
-        kill_process(child_pid)?;
+        kill_process(child_pid, signal)?;
     }
 
-    kill_process(pid)?;
+    kill_process(pid, signal)?;
 
     Ok(())
 }
@@ -170,8 +175,14 @@ fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io
 /// # Arguments
 ///
 /// * `pid` - An i32 value representing the process ID.
-fn kill_process(pid: i32) -> Result<(), std::io::Error> {
+/// * `signal` - A enum value representing the signal type.
+fn kill_process(pid: i32, signal: KillPortSigSpecOptions) -> Result<(), std::io::Error> {
     info!("Killing process with PID {}", pid);
     let pid = Pid::from_raw(pid);
-    kill(pid, Signal::SIGKILL).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+
+    let system_signal = match signal {
+        KillPortSigSpecOptions::SIGKILL => Signal::SIGKILL,
+        KillPortSigSpecOptions::SIGTERM => Signal::SIGTERM,
+    };
+    kill(pid, system_signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
