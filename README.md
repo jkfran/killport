@@ -61,7 +61,17 @@ Kill multiple processes listening on ports 8045, 8046, and 8080:
 ```sh
 killport 8045 8046 8080
 ```
+
+Kill processes with specified signal:
+
+```sh
+killport -s sigterm 8080
+```
+
 ### Flags
+
+-s, --sigspec
+    Specify a signal name to be sent. (e.g. sigterm)
 
 -v, --verbose
     Increase the verbosity level. Use multiple times for more detailed output.
