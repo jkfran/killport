@@ -1,3 +1,5 @@
+use crate::KillPortSigSpecOptions;
+
 use libproc::libproc::file_info::pidfdinfo;
 use libproc::libproc::file_info::{ListFDs, ProcFDType};
 use libproc::libproc::net_info::{SocketFDInfo, SocketInfoKind};
@@ -34,11 +36,12 @@ fn collect_proc() -> Vec<TaskAllInfo> {
 /// # Arguments
 ///
 /// * `port` - The port number to kill processes listening on.
+/// * `signal` - A enum value representing the signal type.
 ///
 /// # Returns
 ///
 /// A `Result` containing a boolean value. If true, at least one process was killed; otherwise, false.
-pub fn kill_processes_by_port(port: u16) -> Result<bool, io::Error> {
+pub fn kill_processes_by_port(port: u16, signal: KillPortSigSpecOptions) -> Result<bool, io::Error> {
     let process_infos = collect_proc();
     let mut killed = false;
 
@@ -90,7 +93,11 @@ pub fn kill_processes_by_port(port: u16) -> Result<bool, io::Error> {
                 warn!("Warning: Found Docker. You might need to stop the container manually.");
             } else {
                 info!("Killing process with PID {}", pid);
-                match signal::kill(pid, Signal::SIGKILL) {
+                let system_signal = match signal {
+                    KillPortSigSpecOptions::SIGKILL => Signal::SIGKILL,
+                    KillPortSigSpecOptions::SIGTERM => Signal::SIGTERM,
+                };
+                match signal::kill(pid, system_signal) {
                     Ok(_) => {
                         killed = true;
                     }
