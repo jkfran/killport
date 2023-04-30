@@ -35,6 +35,7 @@ fn test_killport() {
 
     assert!(status.success(), "Mock process compilation failed");
 
+    // Test killport execution without options
     let mut mock_process = std::process::Command::new(tempdir_path.join("mock_process"))
         .spawn()
         .expect("Failed to run the mock process");
@@ -42,6 +43,23 @@ fn test_killport() {
     // Test killport command
     let mut cmd = Command::cargo_bin("killport").expect("Failed to find killport binary");
     cmd.arg("8080")
+        .assert()
+        .success()
+        .stdout("Successfully killed process listening on port 8080\n");
+
+    // Cleanup: Terminate the mock process (if still running).
+    let _ = mock_process.kill();
+
+    // Test killport execution with -s option
+    let mut mock_process = std::process::Command::new(tempdir_path.join("mock_process"))
+        .spawn()
+        .expect("Failed to run the mock process");
+
+    // Test killport command with specifying a signal name
+    let mut cmd = Command::cargo_bin("killport").expect("Failed to find killport binary");
+    cmd.arg("8080")
+        .arg("-s")
+        .arg("sigterm")
         .assert()
         .success()
         .stdout("Successfully killed process listening on port 8080\n");
