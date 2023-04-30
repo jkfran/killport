@@ -14,10 +14,18 @@ use linux::kill_processes_by_port;
 #[cfg(target_os = "macos")]
 use macos::kill_processes_by_port;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::error;
 use std::process::exit;
+
+/// The `KillPortArgs` struct is used to parse command-line arguments for the
+/// `killport` utility.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum KillPortSigSpecOptions {
+    SIGKILL,
+    SIGTERM,
+}
 
 /// The `KillPortArgs` struct is used to parse command-line arguments for the
 /// `killport` utility.
