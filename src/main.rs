@@ -40,6 +40,16 @@ struct KillPortArgs {
     )]
     ports: Vec<u16>,
 
+    /// An option to specify the type of signal to be sent.
+    #[arg(
+        long,
+        short = 's',
+        name = "SIG",
+        help = "SIG is a signal name",
+        default_value = "sigkill"
+    )]
+    sigspec: KillPortSigSpecOptions,
+
     /// A verbosity flag to control the level of logging output.
     #[command(flatten)]
     verbose: Verbosity<WarnLevel>,
@@ -67,9 +77,13 @@ fn main() {
         .filter_level(log_level)
         .init();
 
+    // Determine a signal to be sent.
+    // If an option for signal number is added, we can determine a signal to be sent by signal number.
+    let signal = args.sigspec;
+
     // Attempt to kill processes listening on specified ports
     for port in args.ports {
-        match kill_processes_by_port(port) {
+        match kill_processes_by_port(port, signal) {
             Ok(killed) => {
                 if killed {
                     println!("Successfully killed process listening on port {}", port);
