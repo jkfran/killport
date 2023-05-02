@@ -44,7 +44,9 @@ jobs:
                 throw error;
               }
             }
-
+            
+            console.log("Release exists: ", releaseExists);
+            core.setOutput("releaseExists", releaseExists);
             return { releaseExists };
 
   release:
