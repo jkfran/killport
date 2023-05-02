@@ -45,7 +45,7 @@ struct KillPortArgs {
         short = 's',
         name = "SIG",
         help = "SIG is a signal name",
-        default_value = "sigkill"
+        default_value = "sigterm"
     )]
     signal: KillPortSignalOptions,
 
