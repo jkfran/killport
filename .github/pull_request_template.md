@@ -1,12 +1,3 @@
----
-name: Pull Request
-about: Submit a pull request to contribute to the project
-title: ''
-labels: ''
-assignees: ''
-
----
-
 **Description of the changes**
 Please provide a clear and concise description of the changes you made.
 
