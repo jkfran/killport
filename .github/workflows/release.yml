@@ -20,8 +20,13 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const version = "${{ env.VERSION }}";
+            const fs = require("fs");
+            const content = fs.readFileSync("Cargo.toml", "utf8");
+            const match = content.match(/^version = "(.*?)"/m);
+            const version = match ? match[1] : "";
             const tag = `v${version}`;
+
+            console.log("Extracted version: ", tag);
 
             let releaseExists = false;
             try {
