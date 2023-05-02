@@ -81,7 +81,10 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 ///
 /// * `target_inode` - A u64 value representing the target inode.
 /// * `signal` - A enum value representing the signal type.
-fn kill_processes_by_inode(target_inode: u64, signal: KillPortSignalOptions) -> Result<bool, Error> {
+fn kill_processes_by_inode(
+    target_inode: u64,
+    signal: KillPortSignalOptions,
+) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
 
@@ -135,7 +138,10 @@ fn kill_processes_by_inode(target_inode: u64, signal: KillPortSignalOptions) -> 
 ///
 /// * `pid` - An i32 value representing the process ID.
 /// * `signal` - A enum value representing the signal type.
-fn kill_process_and_children(pid: i32, signal: KillPortSignalOptions) -> Result<(), std::io::Error> {
+fn kill_process_and_children(
+    pid: i32,
+    signal: KillPortSignalOptions,
+) -> Result<(), std::io::Error> {
     let mut children_pids = Vec::new();
     collect_child_pids(pid, &mut children_pids)?;
 
