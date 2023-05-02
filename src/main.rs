@@ -14,10 +14,17 @@ use linux::kill_processes_by_port;
 #[cfg(target_os = "macos")]
 use macos::kill_processes_by_port;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::error;
 use std::process::exit;
+
+/// The `KillPortSignalOptions` enum is used to specify signal types on the command-line arguments.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum KillPortSignalOptions {
+    SIGKILL,
+    SIGTERM,
+}
 
 /// The `KillPortArgs` struct is used to parse command-line arguments for the
 /// `killport` utility.
@@ -31,6 +38,16 @@ struct KillPortArgs {
         required = true
     )]
     ports: Vec<u16>,
+
+    /// An option to specify the type of signal to be sent.
+    #[arg(
+        long,
+        short = 's',
+        name = "SIG",
+        help = "SIG is a signal name",
+        default_value = "sigterm"
+    )]
+    signal: KillPortSignalOptions,
 
     /// A verbosity flag to control the level of logging output.
     #[command(flatten)]
@@ -59,9 +76,13 @@ fn main() {
         .filter_level(log_level)
         .init();
 
+    // Determine a signal to be sent.
+    // If an option for signal number is added, we can determine a signal to be sent by signal number.
+    let signal = args.signal;
+
     // Attempt to kill processes listening on specified ports
     for port in args.ports {
-        match kill_processes_by_port(port) {
+        match kill_processes_by_port(port, signal) {
             Ok(killed) => {
                 if killed {
                     println!("Successfully killed process listening on port {}", port);
