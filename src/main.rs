@@ -19,10 +19,9 @@ use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::error;
 use std::process::exit;
 
-/// The `KillPortArgs` struct is used to parse command-line arguments for the
-/// `killport` utility.
+/// The `KillPortSignalOptions` enum is used to specify signal types on the command-line arguments.
 #[derive(Clone, Copy, Debug, ValueEnum)]
-pub enum KillPortSigSpecOptions {
+pub enum KillPortSignalOptions {
     SIGKILL,
     SIGTERM,
 }
@@ -48,7 +47,7 @@ struct KillPortArgs {
         help = "SIG is a signal name",
         default_value = "sigkill"
     )]
-    sigspec: KillPortSigSpecOptions,
+    signal: KillPortSignalOptions,
 
     /// A verbosity flag to control the level of logging output.
     #[command(flatten)]
@@ -79,7 +78,7 @@ fn main() {
 
     // Determine a signal to be sent.
     // If an option for signal number is added, we can determine a signal to be sent by signal number.
-    let signal = args.sigspec;
+    let signal = args.signal;
 
     // Attempt to kill processes listening on specified ports
     for port in args.ports {

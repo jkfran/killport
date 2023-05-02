@@ -1,4 +1,4 @@
-use crate::KillPortSigSpecOptions;
+use crate::KillPortSignalOptions;
 
 use libproc::libproc::file_info::pidfdinfo;
 use libproc::libproc::file_info::{ListFDs, ProcFDType};
@@ -41,7 +41,7 @@ fn collect_proc() -> Vec<TaskAllInfo> {
 /// # Returns
 ///
 /// A `Result` containing a boolean value. If true, at least one process was killed; otherwise, false.
-pub fn kill_processes_by_port(port: u16, signal: KillPortSigSpecOptions) -> Result<bool, io::Error> {
+pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Result<bool, io::Error> {
     let process_infos = collect_proc();
     let mut killed = false;
 
@@ -94,8 +94,8 @@ pub fn kill_processes_by_port(port: u16, signal: KillPortSigSpecOptions) -> Resu
             } else {
                 info!("Killing process with PID {}", pid);
                 let system_signal = match signal {
-                    KillPortSigSpecOptions::SIGKILL => Signal::SIGKILL,
-                    KillPortSigSpecOptions::SIGTERM => Signal::SIGTERM,
+                    KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
+                    KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
                 };
                 match signal::kill(pid, system_signal) {
                     Ok(_) => {

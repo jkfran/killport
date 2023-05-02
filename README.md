@@ -70,7 +70,7 @@ killport -s sigterm 8080
 
 ### Flags
 
--s, --sigspec
+-s, --signal
     Specify a signal name to be sent. (e.g. sigterm)
 
 -v, --verbose

@@ -1,4 +1,4 @@
-use crate::KillPortSigSpecOptions;
+use crate::KillPortSignalOptions;
 
 use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
@@ -18,7 +18,7 @@ use std::path::Path;
 ///
 /// * `port` - A u16 value representing the port number.
 /// * `signal` - A enum value representing the signal type.
-pub fn kill_processes_by_port(port: u16, signal: KillPortSigSpecOptions) -> Result<bool, Error> {
+pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Result<bool, Error> {
     let mut killed_any = false;
 
     let target_inodes = find_target_inodes(port);
@@ -81,7 +81,7 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 ///
 /// * `target_inode` - A u64 value representing the target inode.
 /// * `signal` - A enum value representing the signal type.
-fn kill_processes_by_inode(target_inode: u64, signal: KillPortSigSpecOptions) -> Result<bool, Error> {
+fn kill_processes_by_inode(target_inode: u64, signal: KillPortSignalOptions) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
 
@@ -135,7 +135,7 @@ fn kill_processes_by_inode(target_inode: u64, signal: KillPortSigSpecOptions) ->
 ///
 /// * `pid` - An i32 value representing the process ID.
 /// * `signal` - A enum value representing the signal type.
-fn kill_process_and_children(pid: i32, signal: KillPortSigSpecOptions) -> Result<(), std::io::Error> {
+fn kill_process_and_children(pid: i32, signal: KillPortSignalOptions) -> Result<(), std::io::Error> {
     let mut children_pids = Vec::new();
     collect_child_pids(pid, &mut children_pids)?;
 
@@ -176,13 +176,13 @@ fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io
 ///
 /// * `pid` - An i32 value representing the process ID.
 /// * `signal` - A enum value representing the signal type.
-fn kill_process(pid: i32, signal: KillPortSigSpecOptions) -> Result<(), std::io::Error> {
+fn kill_process(pid: i32, signal: KillPortSignalOptions) -> Result<(), std::io::Error> {
     info!("Killing process with PID {}", pid);
     let pid = Pid::from_raw(pid);
 
     let system_signal = match signal {
-        KillPortSigSpecOptions::SIGKILL => Signal::SIGKILL,
-        KillPortSigSpecOptions::SIGTERM => Signal::SIGTERM,
+        KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
+        KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
     };
     kill(pid, system_signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
