@@ -65,13 +65,13 @@ killport 8045 8046 8080
 Kill processes with specified signal:
 
 ```sh
-killport -s sigterm 8080
+killport -s sigkill 8080
 ```
 
 ### Flags
 
 -s, --signal
-    Specify a signal name to be sent. (e.g. sigterm)
+    Specify a signal name to be sent. (e.g. sigkill)
 
 -v, --verbose
     Increase the verbosity level. Use multiple times for more detailed output.
