@@ -41,33 +41,52 @@ pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Resul
 /// * `port` - A u16 value representing the port number.
 #[cfg(target_os = "linux")]
 fn find_target_inodes(port: u16) -> Vec<u64> {
-    let tcp = procfs::net::tcp().unwrap();
-    let tcp6 = procfs::net::tcp6().unwrap();
-    let udp = procfs::net::udp().unwrap();
-    let udp6 = procfs::net::udp6().unwrap();
+    let tcp = procfs::net::tcp();
+    let tcp6 = procfs::net::tcp6();
+    let udp = procfs::net::udp();
+    let udp6 = procfs::net::udp6();
     let mut target_inodes = Vec::new();
 
-    target_inodes.extend(
-        tcp.into_iter()
-            .filter(|tcp_entry| tcp_entry.local_address.port() == port)
-            .map(|tcp_entry| tcp_entry.inode),
-    );
-    target_inodes.extend(
-        tcp6.into_iter()
-            .filter(|tcp_entry| tcp_entry.local_address.port() == port)
-            .map(|tcp_entry| tcp_entry.inode),
-    );
+    trait NetEntry {
+        fn local_address(&self) -> std::net::SocketAddr;
 
-    target_inodes.extend(
-        udp.into_iter()
-            .filter(|udp_entry| udp_entry.local_address.port() == port)
-            .map(|udp_entry| udp_entry.inode),
-    );
-    target_inodes.extend(
-        udp6.into_iter()
-            .filter(|udp_entry| udp_entry.local_address.port() == port)
-            .map(|udp_entry| udp_entry.inode),
-    );
+        fn inode(&self) -> u64;
+    }
+
+    impl NetEntry for procfs::net::TcpNetEntry {
+        fn local_address(&self) -> std::net::SocketAddr {
+            self.local_address
+        }
+
+        fn inode(&self) -> u64 {
+            self.inode
+        }
+    }
+
+    impl NetEntry for procfs::net::UdpNetEntry {
+        fn local_address(&self) -> std::net::SocketAddr {
+            self.local_address
+        }
+
+        fn inode(&self) -> u64 {
+            self.inode
+        }
+    }
+
+    fn add_matching_inodes<T: NetEntry>(target_inodes: &mut Vec<u64>, net_entries: procfs::ProcResult<Vec<T>>, port: u16) {
+        if let Ok(net_entries) = net_entries {
+            target_inodes.extend(
+                net_entries.into_iter()
+                    .filter(move |net_entry| net_entry.local_address().port() == port)
+                    .map(|net_entry| net_entry.inode())
+            );
+        }
+    }
+
+    add_matching_inodes(&mut target_inodes, tcp, port);
+    add_matching_inodes(&mut target_inodes, tcp6, port);
+    add_matching_inodes(&mut target_inodes, udp, port);
+    add_matching_inodes(&mut target_inodes, udp6, port);
 
     target_inodes
 }
