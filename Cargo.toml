@@ -1,6 +1,6 @@
 [package]
 name = "killport"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
 license = "MIT"

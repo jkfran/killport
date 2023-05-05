@@ -73,12 +73,17 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
         }
     }
 
-    fn add_matching_inodes<T: NetEntry>(target_inodes: &mut Vec<u64>, net_entries: procfs::ProcResult<Vec<T>>, port: u16) {
+    fn add_matching_inodes<T: NetEntry>(
+        target_inodes: &mut Vec<u64>,
+        net_entries: procfs::ProcResult<Vec<T>>,
+        port: u16,
+    ) {
         if let Ok(net_entries) = net_entries {
             target_inodes.extend(
-                net_entries.into_iter()
+                net_entries
+                    .into_iter()
                     .filter(move |net_entry| net_entry.local_address().port() == port)
-                    .map(|net_entry| net_entry.inode())
+                    .map(|net_entry| net_entry.inode()),
             );
         }
     }
