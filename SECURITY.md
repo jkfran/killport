@@ -6,8 +6,8 @@ We are committed to providing security updates for the following versions of kil
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.7.x   | :white_check_mark: |
-| < 0.7.0 | :x:                |
+| 0.8.x   | :white_check_mark: |
+| < 0.8.0 | :x:                |
 
 Older versions of killport may still work but are not actively maintained or supported. We encourage users to upgrade to the latest version to receive security updates and feature improvements.
 
@@ -19,7 +19,7 @@ Please follow these steps to report a vulnerability:
 
 1. Go to the [GitHub Security tab](https://github.com/jkfran/killport/security/advisories) in the killport repository.
 2. Click on "New draft advisory."
-3. Provide a descriptive title for the advisory, such as "Security Vulnerability in killport v0.7.0."
+3. Provide a descriptive title for the advisory, such as "Security Vulnerability in killport v0.8.0."
 4. Provide a detailed description of the vulnerability, including steps to reproduce the issue, affected components, and potential impact.
 5. If you have a suggested patch or workaround, please include it in the report. However, this is not required.
 6. Submit the draft advisory.
