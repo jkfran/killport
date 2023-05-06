@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use std::fs::File;
 use std::io::Write;
+use std::{thread, time};
 use tempfile::tempdir;
 
 #[test]
@@ -76,7 +77,7 @@ fn test_killport_for_docker() {
             "run",
             "-d",
             "--name",
-            "for-killport-test",
+            "test",
             "--rm",
             "-p",
             "8081:80",
@@ -84,6 +85,10 @@ fn test_killport_for_docker() {
         ])
         .spawn()
         .expect("Failed to run the mock container process");
+
+    // FIXME: We should wait a few millseconds for the container is running definitely.
+    let wait = time::Duration::from_millis(500);
+    thread::sleep(wait);
 
     // Test killport command with specifying a port is bound for docker container
     let mut cmd = Command::cargo_bin("killport").expect("Failed to find killport binary");
