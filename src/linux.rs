@@ -1,12 +1,16 @@
 use crate::KillPortSignalOptions;
 
-use log::{debug, info, warn};
 use anyhow::{Result, anyhow};
+use bollard::Docker;
+use bollard::container::{ListContainersOptions, KillContainerOptions};
 use log::{debug, info};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use procfs::process::FDTarget;
+use std::collections::HashMap;
 use std::io;
+use tokio::runtime::Runtime;
+
 /// Interface for killable targets such as native process and docker container.
 trait Killable {
     fn kill(&self, signal: KillPortSignalOptions) -> Result<bool>;
@@ -96,6 +100,46 @@ impl Killable for NativeProcess {
     }
 }
 
+#[derive(Debug)]
+struct DockerContainer {
+    /// Container name.
+    name: String,
+}
+
+impl DockerContainer {
+    fn kill_container(name: &String, signal: KillPortSignalOptions) -> Result<()> {
+        info!("Killing container with name {}", name);
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let docker = Docker::connect_with_socket_defaults().unwrap();
+            let options = KillContainerOptions {
+                signal: match signal {
+                    KillPortSignalOptions::SIGKILL => "SIGKILL",
+                    KillPortSignalOptions::SIGTERM => "SIGTERM",
+                }
+            };
+
+            docker.kill_container(
+                name.replace("/", "").as_str(),
+                Some(options),
+            ).await
+        }).map_err(|e| anyhow!(e))
+    }
+}
+
+impl Killable for DockerContainer {
+    fn kill(&self, signal: KillPortSignalOptions) -> Result<bool> {
+        let mut killed_any = false;
+
+        match Self::kill_container(&self.name, signal) {
+            Ok(_) => killed_any = true,
+            Err(err) => return Err(err),
+        };
+
+        Ok(killed_any)
+    }
+}
 
 /// Attempts to kill processes listening on the specified `port`.
 ///
@@ -144,6 +188,10 @@ fn find_target_killables(port: u16) -> Vec<Box<dyn Killable>> {
         target_killables.push(Box::new(process));
     }
 
+    let target_containers = find_target_containers(port);
+    for container in target_containers {
+        target_killables.push(Box::new(container));
+    }
 
     target_killables
 }
@@ -249,36 +297,34 @@ fn find_target_processes(inodes: Vec<u64>) -> Vec<NativeProcess> {
 ///
 /// # Arguments
 ///
-/// * `pid` - An i32 value representing the process ID.
-/// * `child_pids` - A mutable reference to a `Vec<i32>` where the child PIDs will be stored.
-fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io::Error> {
-    let processes = procfs::process::all_processes().unwrap();
+/// * `port` - A u16 value representing the port number.
+fn find_target_containers(port: u16) -> Vec<DockerContainer> {
+    let mut target_containers : Vec<DockerContainer> = vec![];
 
-    for p in processes {
-        let process = p.unwrap();
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        let docker = Docker::connect_with_socket_defaults().unwrap();
 
-        if process.stat().unwrap().ppid == pid {
-            child_pids.push(process.pid);
-            collect_child_pids(process.pid, child_pids)?;
+        let mut filters = HashMap::new();
+        filters.insert("publish".to_string(), vec![port.to_string()]);
+        let options = ListContainersOptions {
+            all: true,
+            filters,
+            ..Default::default()
+        };
+
+        let containers= docker.list_containers::<String>(Some(options)).await.unwrap();
+        for container in containers {
+            let ports = container.ports.clone().unwrap_or_else(|| vec![]);
+
+            for p in ports {
+                if p.public_port.is_none() { continue };
+
+                let container_name = container.names.clone().unwrap().pop().unwrap();
+                target_containers.push(DockerContainer { name: container_name.to_string() });
+            }
         }
-    }
+    });
 
-    Ok(())
-}
-
-/// Kills the process with the specified `pid`.
-///
-/// # Arguments
-///
-/// * `pid` - An i32 value representing the process ID.
-/// * `signal` - A enum value representing the signal type.
-fn kill_process(pid: i32, signal: KillPortSignalOptions) -> Result<(), std::io::Error> {
-    info!("Killing process with PID {}", pid);
-    let pid = Pid::from_raw(pid);
-
-    let system_signal = match signal {
-        KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
-        KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
-    };
-    kill(pid, system_signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    target_containers
 }
