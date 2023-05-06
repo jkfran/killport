@@ -67,3 +67,23 @@ fn test_killport() {
     // Cleanup: Terminate the mock process (if still running).
     let _ = mock_process.kill();
 }
+
+
+#[test]
+fn test_killport_for_docker() {
+    // Run a mock container in the background
+    let mut mock_process = std::process::Command::new("docker")
+        .args(["run", "-d", "--name", "test", "--rm", "-p", "8081:80", "nginx:latest"])
+        .spawn()
+        .expect("Failed to run the mock container process");
+
+    // Test killport command with specifying a port is bound for docker container
+    let mut cmd = Command::cargo_bin("killport").expect("Failed to find killport binary");
+    cmd.arg("8081")
+        .assert()
+        .success()
+        .stdout("Successfully killed process listening on port 8081\n");
+
+    // Cleanup: Terminate the mock process (if still running).
+    let _ = mock_process.kill();
+}
