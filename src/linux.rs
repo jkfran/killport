@@ -27,7 +27,7 @@ impl NativeProcess {
     ///
     /// # Arguments
     ///
-    /// * `pid` - An i32 value representing the process ID.
+    /// * `pid` - An Pid struct representing the process ID.
     /// * `signal` - A enum value representing the signal type.
     fn kill_process(pid: Pid, signal: KillPortSignalOptions) -> Result<()> {
         info!("Killing process with PID {}", pid);
@@ -44,7 +44,7 @@ impl NativeProcess {
     ///
     /// # Arguments
     ///
-    /// * `pid` - An i32 value representing the process ID.
+    /// * `pid` - An Pid struct representing the process ID.
     /// * `signal` - A enum value representing the signal type.
     fn kill_process_and_children(pid: Pid, signal: KillPortSignalOptions) -> Result<()> {
         let mut children_pids = Vec::new();
@@ -64,7 +64,7 @@ impl NativeProcess {
     ///
     /// # Arguments
     ///
-    /// * `pid` - An i32 value representing the process ID.
+    /// * `pid` - An Pid struct representing the process ID.
     /// * `child_pids` - A mutable reference to a `Vec<i32>` where the child PIDs will be stored.
     fn collect_child_pids(pid: Pid, child_pids: &mut Vec<Pid>) -> Result<()> {
         let processes = procfs::process::all_processes().unwrap();
@@ -84,7 +84,7 @@ impl NativeProcess {
 }
 
 impl Killable for NativeProcess {
-    /// Kill the linux native process.
+    /// Entry point to kill the linux native process.
     ///
     /// # Arguments
     ///
@@ -108,6 +108,12 @@ struct DockerContainer {
 }
 
 impl DockerContainer {
+    /// Kill the docker container.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - A container name.
+    /// * `signal` - A enum value representing the signal type.
     fn kill_container(name: &String, signal: KillPortSignalOptions) -> Result<()> {
         info!("Killing container with name {}", name);
 
@@ -130,6 +136,11 @@ impl DockerContainer {
 }
 
 impl Killable for DockerContainer {
+    /// Entry point to kill the docker containers.
+    ///
+    /// # Arguments
+    ///
+    /// * `signal` - A enum value representing the signal type.
     fn kill(&self, signal: KillPortSignalOptions) -> Result<bool> {
         let mut killed_any = false;
 
@@ -294,9 +305,9 @@ fn find_target_processes(inodes: Vec<u64>) -> Vec<NativeProcess> {
     target_pids
 }
 
-/// Finds the inodes associated with the specified `port`.
+/// Finds the docker containers associated with the specified `port`.
 ///
-/// Returns a `Vec` of inodes for both IPv4 and IPv6 connections.
+/// Returns a `Vec` of docker containers.
 ///
 /// # Arguments
 ///
