@@ -1,8 +1,8 @@
 use crate::KillPortSignalOptions;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use bollard::container::{KillContainerOptions, ListContainersOptions};
 use bollard::Docker;
-use bollard::container::{ListContainersOptions, KillContainerOptions};
 use log::{debug, info};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
@@ -36,7 +36,8 @@ impl NativeProcess {
             KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
             KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
         };
-        kill(pid, system_signal).map_err(|e| anyhow!(std::io::Error::new(std::io::ErrorKind::Other, e)))
+        kill(pid, system_signal)
+            .map_err(|e| anyhow!(std::io::Error::new(std::io::ErrorKind::Other, e)))
     }
 
     /// Recursively kills the process with the specified `pid` and its children.
@@ -117,14 +118,14 @@ impl DockerContainer {
                 signal: match signal {
                     KillPortSignalOptions::SIGKILL => "SIGKILL",
                     KillPortSignalOptions::SIGTERM => "SIGTERM",
-                }
+                },
             };
 
-            docker.kill_container(
-                name.replace("/", "").as_str(),
-                Some(options),
-            ).await
-        }).map_err(|e| anyhow!(e))
+            docker
+                .kill_container(name.replace("/", "").as_str(), Some(options))
+                .await
+        })
+        .map_err(|e| anyhow!(e))
     }
 }
 
@@ -280,7 +281,9 @@ fn find_target_processes(inodes: Vec<u64>) -> Vec<NativeProcess> {
                     if let FDTarget::Socket(sock_inode) = fd.unwrap().target {
                         if inode == sock_inode {
                             debug!("Found process with PID {}", process.pid);
-                            target_pids.push(NativeProcess { pid: Pid::from_raw(process.pid) });
+                            target_pids.push(NativeProcess {
+                                pid: Pid::from_raw(process.pid),
+                            });
                         }
                     }
                 }
@@ -299,7 +302,7 @@ fn find_target_processes(inodes: Vec<u64>) -> Vec<NativeProcess> {
 ///
 /// * `port` - A u16 value representing the port number.
 fn find_target_containers(port: u16) -> Vec<DockerContainer> {
-    let mut target_containers : Vec<DockerContainer> = vec![];
+    let mut target_containers: Vec<DockerContainer> = vec![];
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
@@ -313,15 +316,22 @@ fn find_target_containers(port: u16) -> Vec<DockerContainer> {
             ..Default::default()
         };
 
-        let containers= docker.list_containers::<String>(Some(options)).await.unwrap();
+        let containers = docker
+            .list_containers::<String>(Some(options))
+            .await
+            .unwrap();
         for container in containers {
             let ports = container.ports.clone().unwrap_or_else(|| vec![]);
 
             for p in ports {
-                if p.public_port.is_none() { continue };
+                if p.public_port.is_none() {
+                    continue;
+                };
 
                 let container_name = container.names.clone().unwrap().pop().unwrap();
-                target_containers.push(DockerContainer { name: container_name.to_string() });
+                target_containers.push(DockerContainer {
+                    name: container_name.to_string(),
+                });
             }
         }
     });

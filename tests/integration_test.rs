@@ -68,12 +68,20 @@ fn test_killport() {
     let _ = mock_process.kill();
 }
 
-
 #[test]
 fn test_killport_for_docker() {
     // Run a mock container in the background
     let mut mock_process = std::process::Command::new("docker")
-        .args(["run", "-d", "--name", "test", "--rm", "-p", "8081:80", "nginx:latest"])
+        .args([
+            "run",
+            "-d",
+            "--name",
+            "test",
+            "--rm",
+            "-p",
+            "8081:80",
+            "nginx:latest",
+        ])
         .spawn()
         .expect("Failed to run the mock container process");
 
