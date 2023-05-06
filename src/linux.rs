@@ -90,14 +90,11 @@ impl Killable for NativeProcess {
     ///
     /// * `signal` - A enum value representing the signal type.
     fn kill(&self, signal: KillPortSignalOptions) -> Result<bool> {
-        let mut killed_any = false;
+        if let Err(err) = Self::kill_process_and_children(self.pid, signal) {
+            return Err(err);
+        }
 
-        match Self::kill_process_and_children(self.pid, signal) {
-            Ok(_) => killed_any = true,
-            Err(err) => return Err(err),
-        };
-
-        Ok(killed_any)
+        Ok(true)
     }
 }
 
@@ -142,14 +139,11 @@ impl Killable for DockerContainer {
     ///
     /// * `signal` - A enum value representing the signal type.
     fn kill(&self, signal: KillPortSignalOptions) -> Result<bool> {
-        let mut killed_any = false;
+        if let Err(err) = Self::kill_container(&self.name, signal) {
+            return Err(err);
+        }
 
-        match Self::kill_container(&self.name, signal) {
-            Ok(_) => killed_any = true,
-            Err(err) => return Err(err),
-        };
-
-        Ok(killed_any)
+        Ok(true)
     }
 }
 
