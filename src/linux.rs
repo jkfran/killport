@@ -315,8 +315,8 @@ fn find_target_containers(port: u16) -> Vec<DockerContainer> {
 
         let mut filters = HashMap::new();
         filters.insert("publish".to_string(), vec![port.to_string()]);
+        filters.insert("status".to_string(), vec!["running".to_string()]);
         let options = ListContainersOptions {
-            all: true,
             filters,
             ..Default::default()
         };
@@ -337,6 +337,10 @@ fn find_target_containers(port: u16) -> Vec<DockerContainer> {
                 target_containers.push(DockerContainer {
                     name: container_name.to_string(),
                 });
+
+                // Break immediately when we added a container bound to target port,
+                // because the ports vec has both of IPv4 and IPv6 port mapping information about a same container.
+                break;
             }
         }
     });
