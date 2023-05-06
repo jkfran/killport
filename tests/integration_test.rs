@@ -76,7 +76,7 @@ fn test_killport_for_docker() {
             "run",
             "-d",
             "--name",
-            "test",
+            "for-killport-test",
             "--rm",
             "-p",
             "8081:80",
