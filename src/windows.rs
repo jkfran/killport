@@ -13,6 +13,15 @@ use windows_sys::Win32::{
     Networking::WinSock::{ADDRESS_FAMILY, AF_INET, AF_INET6},
 };
 
+/// Attempts to kill processes listening on the specified `port`.
+///
+/// Returns a `Result` with `true` if any processes were killed, `false` if no
+/// processes were found listening on the port, and an `Error` if the operation
+/// failed or the platform is unsupported.
+///
+/// # Arguments
+///
+/// * `port` - A u16 value representing the port number.
 pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<bool, Error> {
     let mut pids = Vec::new();
 
@@ -31,6 +40,11 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
     Ok(killed)
 }
 
+/// Kills a process with the provided process ID
+///
+/// # Arguments
+///
+/// * `pid` - The process ID
 unsafe fn kill_process(pid: u32) -> Result<(), Error> {
     // Open the process handle with intent to terminate
     let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
@@ -55,8 +69,10 @@ unsafe fn kill_process(pid: u32) -> Result<(), Error> {
 /// Reads the extended TCP table into memory using the provided address `family`
 /// to determine the output type. Returns the memory pointer to the loaded struct
 ///
-/// `layout` The layout of the memory
-/// `family` The address family type
+/// # Arguments
+///
+/// * `layout` - The layout of the memory
+/// * `family` - The address family type
 unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
     let mut buffer = std::alloc::alloc(layout);
 
@@ -105,8 +121,10 @@ unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 /// Reads the extended UDP table into memory using the provided address `family`
 /// to determine the output type. Returns the memory pointer to the loaded struct
 ///
-/// `layout` The layout of the memory
-/// `family` The address family type
+/// # Arguments
+///
+/// * `layout` - The layout of the memory
+/// * `family` - The address family type
 unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
     let mut buffer = std::alloc::alloc(layout);
 
@@ -155,6 +173,11 @@ unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 /// Searches through the IPv4 extended TCP table for any processes
 /// that are listening on the provided `port`. Will append any processes
 /// found onto the provided `pids` list
+///
+/// # Arguments
+///
+/// * `port` The port to search for
+/// * `pids` The list of process IDs to append to
 unsafe fn get_process_tcp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_TCPTABLE_OWNER_MODULE>();
@@ -188,6 +211,11 @@ unsafe fn get_process_tcp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 /// Searches through the IPv6 extended TCP table for any processes
 /// that are listening on the provided `port`. Will append any processes
 /// found onto the provided `pids` list
+///
+/// # Arguments
+///
+/// * `port` The port to search for
+/// * `pids` The list of process IDs to append to
 unsafe fn get_process_tcp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_TCP6TABLE_OWNER_MODULE>();
@@ -221,6 +249,11 @@ unsafe fn get_process_tcp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 /// Searches through the IPv4 extended UDP table for any processes
 /// that are listening on the provided `port`. Will append any processes
 /// found onto the provided `pids` list
+///
+/// # Arguments
+///
+/// * `port` The port to search for
+/// * `pids` The list of process IDs to append to
 unsafe fn get_process_udp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_UDPTABLE_OWNER_MODULE>();
@@ -253,6 +286,11 @@ unsafe fn get_process_udp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 /// Searches through the IPv6 extended UDP table for any processes
 /// that are listening on the provided `port`. Will append any processes
 /// found onto the provided `pids` list
+///
+/// # Arguments
+///
+/// * `port` The port to search for
+/// * `pids` The list of process IDs to append to
 unsafe fn get_process_udp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_UDP6TABLE_OWNER_MODULE>();
