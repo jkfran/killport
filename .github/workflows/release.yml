@@ -97,7 +97,7 @@ jobs:
           VERSION=$(grep '^version =' Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"' | tr -d "\n")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Found version: $VERSION"
-          echo "::set-output name=version::$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v1
