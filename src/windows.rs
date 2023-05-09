@@ -1,10 +1,11 @@
 use crate::KillPortSignalOptions;
+use log::{debug, info};
 use std::{
     alloc::Layout,
     io::{Error, ErrorKind},
 };
 use windows_sys::Win32::{
-    Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR},
+    Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER, NO_ERROR},
     NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_MODULE,
         MIB_TCP6TABLE_OWNER_MODULE, MIB_TCPROW_OWNER_MODULE, MIB_TCPTABLE_OWNER_MODULE,
@@ -35,6 +36,7 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
     let mut killed = false;
 
     for pid in pids {
+        debug!("Found process with PID {}", pid);
         unsafe { kill_process(pid)? }
         killed = true;
     }
@@ -48,20 +50,23 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
 ///
 /// * `pid` - The process ID
 unsafe fn kill_process(pid: u32) -> Result<(), Error> {
+    info!("Killing process with PID {}", pid);
+
     // Open the process handle with intent to terminate
     let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
     if (&handle as *const isize).is_null() {
         return Err(std::io::Error::new(
             ErrorKind::Other,
-            "Failed to obtain handle to process",
+            format!("Failed to obtain handle to process: {}", pid),
         ));
     }
 
     let result = TerminateProcess(handle, 0);
     if result == 0 {
+        let error = GetLastError();
         return Err(std::io::Error::new(
             ErrorKind::Other,
-            "Failed to terminate process",
+            format!("Failed to terminate process {}: {:#x}", pid, error),
         ));
     }
 
