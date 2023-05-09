@@ -1,7 +1,8 @@
 use crate::KillPortSignalOptions;
-use std::alloc::Layout;
-use std::io::{Error, ErrorKind};
-use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+use std::{
+    alloc::Layout,
+    io::{Error, ErrorKind},
+};
 use windows_sys::Win32::{
     Foundation::{ERROR_INSUFFICIENT_BUFFER, NO_ERROR},
     NetworkManagement::IpHelper::{
@@ -11,6 +12,7 @@ use windows_sys::Win32::{
         MIB_UDPTABLE_OWNER_MODULE, TCP_TABLE_OWNER_MODULE_ALL, UDP_TABLE_OWNER_MODULE,
     },
     Networking::WinSock::{ADDRESS_FAMILY, AF_INET, AF_INET6},
+    System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE},
 };
 
 /// Attempts to kill processes listening on the specified `port`.
