@@ -2,6 +2,7 @@ use crate::KillPortSignalOptions;
 use log::{debug, info};
 use std::{
     alloc::Layout,
+    collections::HashSet,
     io::{Error, ErrorKind},
 };
 use windows_sys::Win32::{
@@ -26,22 +27,27 @@ use windows_sys::Win32::{
 ///
 /// * `port` - A u16 value representing the port number.
 pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<bool, Error> {
-    let mut pids = Vec::new();
+    let mut pids = HashSet::new();
+    unsafe {
+        // Collect the PIDs
+        get_process_tcp_v4(port, &mut pids)?;
+        get_process_tcp_v6(port, &mut pids)?;
+        get_process_udp_v4(port, &mut pids)?;
+        get_process_udp_v6(port, &mut pids)?;
 
-    unsafe { get_process_tcp_v4(port, &mut pids)? }
-    unsafe { get_process_tcp_v6(port, &mut pids)? }
-    unsafe { get_process_udp_v4(port, &mut pids)? }
-    unsafe { get_process_udp_v6(port, &mut pids)? }
+        // Nothing was found
+        if pids.is_empty() {
+            return Ok(false);
+        }
 
-    let mut killed = false;
+        for pid in pids {
+            debug!("Found process with PID {}", pid);
+            kill_process(pid)?;
+        }
 
-    for pid in pids {
-        debug!("Found process with PID {}", pid);
-        unsafe { kill_process(pid)? }
-        killed = true;
+        // Something had to have been killed to reach here
+        Ok(true)
     }
-
-    Ok(killed)
 }
 
 /// Kills a process with the provided process ID
@@ -180,13 +186,13 @@ unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 
 /// Searches through the IPv4 extended TCP table for any processes
 /// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` list
+/// found onto the provided `pids` set
 ///
 /// # Arguments
 ///
 /// * `port` The port to search for
-/// * `pids` The list of process IDs to append to
-unsafe fn get_process_tcp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
+/// * `pids` The set of process IDs to append to
+unsafe fn get_process_tcp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_TCPTABLE_OWNER_MODULE>();
     let buffer = get_extended_tcp_table(layout, AF_INET)?;
@@ -206,7 +212,7 @@ unsafe fn get_process_tcp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
             // Convert the port value
             let local_port: u16 = (element.dwLocalPort as u16).to_be();
             if local_port == port {
-                pids.push(element.dwOwningPid)
+                pids.insert(element.dwOwningPid);
             }
         });
 
@@ -218,13 +224,13 @@ unsafe fn get_process_tcp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 
 /// Searches through the IPv6 extended TCP table for any processes
 /// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` list
+/// found onto the provided `pids` set
 ///
 /// # Arguments
 ///
 /// * `port` The port to search for
-/// * `pids` The list of process IDs to append to
-unsafe fn get_process_tcp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
+/// * `pids` The set of process IDs to append to
+unsafe fn get_process_tcp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_TCP6TABLE_OWNER_MODULE>();
     let buffer = get_extended_tcp_table(layout, AF_INET6)?;
@@ -244,7 +250,7 @@ unsafe fn get_process_tcp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
             // Convert the port value
             let local_port: u16 = (element.dwLocalPort as u16).to_be();
             if local_port == port {
-                pids.push(element.dwOwningPid)
+                pids.insert(element.dwOwningPid);
             }
         });
 
@@ -256,13 +262,13 @@ unsafe fn get_process_tcp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 
 /// Searches through the IPv4 extended UDP table for any processes
 /// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` list
+/// found onto the provided `pids` set
 ///
 /// # Arguments
 ///
 /// * `port` The port to search for
-/// * `pids` The list of process IDs to append to
-unsafe fn get_process_udp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
+/// * `pids` The set of process IDs to append to
+unsafe fn get_process_udp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_UDPTABLE_OWNER_MODULE>();
     let buffer = get_extended_udp_table(layout, AF_INET)?;
@@ -282,7 +288,7 @@ unsafe fn get_process_udp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
             // Convert the port value
             let local_port: u16 = (element.dwLocalPort as u16).to_be();
             if local_port == port {
-                pids.push(element.dwOwningPid)
+                pids.insert(element.dwOwningPid);
             }
         });
 
@@ -293,13 +299,13 @@ unsafe fn get_process_udp_v4(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
 
 /// Searches through the IPv6 extended UDP table for any processes
 /// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` list
+/// found onto the provided `pids` set
 ///
 /// # Arguments
 ///
 /// * `port` The port to search for
-/// * `pids` The list of process IDs to append to
-unsafe fn get_process_udp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error> {
+/// * `pids` The set of process IDs to append to
+unsafe fn get_process_udp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
     let layout = Layout::new::<MIB_UDP6TABLE_OWNER_MODULE>();
     let buffer = get_extended_udp_table(layout, AF_INET6)?;
@@ -319,7 +325,7 @@ unsafe fn get_process_udp_v6(port: u16, pids: &mut Vec<u32>) -> Result<(), Error
             // Convert the port value
             let local_port: u16 = (element.dwLocalPort as u16).to_be();
             if local_port == port {
-                pids.push(element.dwOwningPid)
+                pids.insert(element.dwOwningPid);
             }
         });
 
