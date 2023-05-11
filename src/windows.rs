@@ -54,10 +54,11 @@ unsafe fn kill_process(pid: u32) -> Result<(), Error> {
 
     // Open the process handle with intent to terminate
     let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
-    if (&handle as *const isize).is_null() {
+    if handle == 0 {
+        let error = GetLastError();
         return Err(std::io::Error::new(
             ErrorKind::Other,
-            format!("Failed to obtain handle to process: {}", pid),
+            format!("Failed to obtain handle to process {}: {:#x}", pid, error),
         ));
     }
 
