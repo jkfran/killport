@@ -1,5 +1,3 @@
-use crate::KillPortSignalOptions;
-
 use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
@@ -18,7 +16,7 @@ use std::path::Path;
 ///
 /// * `port` - A u16 value representing the port number.
 /// * `signal` - A enum value representing the signal type.
-pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Result<bool, Error> {
+pub fn kill_processes_by_port(port: u16, signal: Signal) -> Result<bool, Error> {
     let mut killed_any = false;
 
     let target_inodes = find_target_inodes(port);
@@ -107,7 +105,7 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 /// * `signal` - A enum value representing the signal type.
 fn kill_processes_by_inode(
     target_inode: u64,
-    signal: KillPortSignalOptions,
+    signal: Signal,
 ) -> Result<bool, Error> {
     let processes = procfs::process::all_processes().unwrap();
     let mut killed_any = false;
@@ -164,7 +162,7 @@ fn kill_processes_by_inode(
 /// * `signal` - A enum value representing the signal type.
 fn kill_process_and_children(
     pid: i32,
-    signal: KillPortSignalOptions,
+    signal: Signal,
 ) -> Result<(), std::io::Error> {
     let mut children_pids = Vec::new();
     collect_child_pids(pid, &mut children_pids)?;
@@ -206,13 +204,9 @@ fn collect_child_pids(pid: i32, child_pids: &mut Vec<i32>) -> Result<(), std::io
 ///
 /// * `pid` - An i32 value representing the process ID.
 /// * `signal` - A enum value representing the signal type.
-fn kill_process(pid: i32, signal: KillPortSignalOptions) -> Result<(), std::io::Error> {
+fn kill_process(pid: i32, signal: Signal) -> Result<(), std::io::Error> {
     info!("Killing process with PID {}", pid);
     let pid = Pid::from_raw(pid);
 
-    let system_signal = match signal {
-        KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
-        KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
-    };
-    kill(pid, system_signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    kill(pid, signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
