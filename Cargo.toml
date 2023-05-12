@@ -19,7 +19,6 @@ clap = { version = "4.3.19", features = ["derive"] }
 nix = "0.26.2"
 bollard = "0.14.0"
 tokio = "1.28.0"
-anyhow = "1.0.71"
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 procfs = "0.15.1"
