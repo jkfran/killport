@@ -8,11 +8,15 @@
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
 
 #[cfg(target_os = "linux")]
 use linux::kill_processes_by_port;
 #[cfg(target_os = "macos")]
 use macos::kill_processes_by_port;
+#[cfg(target_os = "windows")]
+use windows::kill_processes_by_port;
 
 use clap::{Parser, ValueEnum};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
