@@ -17,7 +17,7 @@
 - Kill processes by port number
 - Supports multiple port numbers
 - Verbosity control
-- Works on Linux and macOS
+- Works on Linux, macOS and Windows
 
 ## Installation
 
