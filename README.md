@@ -68,6 +68,41 @@ Kill processes with specified signal:
 killport -s sigkill 8080
 ```
 
+Supported Signals:
+- sighup
+- sigint
+- sigquit
+- sigill
+- sigtrap
+- sigabrt
+- sigbus
+- sigfpe
+- sigkill
+- sigusr1
+- sigsegv
+- sigusr2
+- sigpipe
+- sigalrm
+- sigterm
+- sigstkflt
+- sigchld
+- sigcont
+- sigstop
+- sigtstp
+- sigttin
+- sigttou
+- sigurg
+- sigxcpu
+- sigxfsz
+- sigvtalrm
+- sigprof
+- sigwinch
+- sigio
+- sigpwr
+- sigsys
+- sigemt
+- siginfo
+
 ### Flags
 
 -s, --signal
