@@ -6,7 +6,9 @@ use std::{
     io::{Error, ErrorKind},
 };
 use windows_sys::Win32::{
-    Foundation::{GetLastError, ERROR_INSUFFICIENT_BUFFER, NO_ERROR},
+    Foundation::{
+        CloseHandle, GetLastError, ERROR_INSUFFICIENT_BUFFER, INVALID_HANDLE_VALUE, NO_ERROR,
+    },
     NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_MODULE,
         MIB_TCP6TABLE_OWNER_MODULE, MIB_TCPROW_OWNER_MODULE, MIB_TCPTABLE_OWNER_MODULE,
@@ -14,7 +16,13 @@ use windows_sys::Win32::{
         MIB_UDPTABLE_OWNER_MODULE, TCP_TABLE_OWNER_MODULE_ALL, UDP_TABLE_OWNER_MODULE,
     },
     Networking::WinSock::{ADDRESS_FAMILY, AF_INET, AF_INET6},
-    System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE},
+    System::{
+        Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32,
+            TH32CS_SNAPPROCESS,
+        },
+        Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE},
+    },
 };
 
 /// Attempts to kill processes listening on the specified `port`.
@@ -40,6 +48,9 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
             return Ok(false);
         }
 
+        // Collect parents of the PIDs
+        collect_parents(&mut pids)?;
+
         for pid in pids {
             debug!("Found process with PID {}", pid);
             kill_process(pid)?;
@@ -48,6 +59,66 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
         // Something had to have been killed to reach here
         Ok(true)
     }
+}
+
+/// Collects all the parent processes for the PIDs in
+/// the provided set
+///
+/// # Arguments
+///
+/// * `pids` - The set to match PIDs from and insert PIDs into
+unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
+    // Request a snapshot handle
+    let handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+    // Ensure we got a valid handle
+    if handle == INVALID_HANDLE_VALUE {
+        let error = GetLastError();
+        return Err(std::io::Error::new(
+            ErrorKind::Other,
+            format!("Failed to get handle to processes: {:#x}", error),
+        ));
+    }
+
+    // Allocate the memory to use for the entries
+    let layout = Layout::new::<PROCESSENTRY32>();
+    let buffer = std::alloc::alloc_zeroed(layout);
+
+    let entry_ptr: *mut PROCESSENTRY32 = buffer.cast();
+
+    // Set the size of the structure to the correct value
+    let dw_size = std::ptr::addr_of_mut!((*entry_ptr).dwSize);
+    *dw_size = layout.size() as u32;
+
+    // Process the first item
+    if Process32First(handle, entry_ptr) != 0 {
+        let mut count = 0;
+
+        loop {
+            let entry: PROCESSENTRY32 = entry_ptr.read();
+
+            // Add matching processes to the output
+            if pids.contains(&entry.th32ProcessID) {
+                pids.insert(entry.th32ParentProcessID);
+                count += 1;
+            }
+
+            // Process the next entry
+            if Process32Next(handle, entry_ptr) == 0 {
+                break;
+            }
+        }
+
+        info!("Collected {} parent processes", count);
+    }
+
+    // Deallocate the memory used
+    std::alloc::dealloc(buffer, layout);
+
+    // Close the handle we obtained
+    CloseHandle(handle);
+
+    Ok(())
 }
 
 /// Kills a process with the provided process ID
