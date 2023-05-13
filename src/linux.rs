@@ -36,8 +36,7 @@ impl NativeProcess {
             KillPortSignalOptions::SIGKILL => Signal::SIGKILL,
             KillPortSignalOptions::SIGTERM => Signal::SIGTERM,
         };
-        kill(pid, system_signal)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        kill(pid, system_signal).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
     /// Recursively kills the process with the specified `pid` and its children.
@@ -72,10 +71,10 @@ impl NativeProcess {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
         for p in processes {
-            let process = p
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            let process = p.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-            let stat = process.stat()
+            let stat = process
+                .stat()
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             if stat.ppid == pid.as_raw() {
                 let pid = Pid::from_raw(process.pid);
@@ -285,13 +284,11 @@ fn find_target_processes(inodes: Vec<u64>) -> Result<Vec<NativeProcess>, Error> 
         let processes = procfs::process::all_processes()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         for p in processes {
-            let process = p
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            let process = p.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
             if let Ok(fds) = process.fd() {
                 for fd in fds {
-                    let fd = fd
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    let fd = fd.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
                     if let FDTarget::Socket(sock_inode) = fd.target {
                         if inode == sock_inode {
