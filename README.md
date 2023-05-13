@@ -1,13 +1,23 @@
+<div align="center">
+<a href="https://github.com/jkfran/jkfran.com/stargazers"><img src="https://img.shields.io/github/stars/jkfran/killport" alt="Stars Badge"/></a>
+<a href="https://github.com/jkfran/jkfran.com/network/members"><img src="https://img.shields.io/github/forks/jkfran/killport" alt="Forks Badge"/></a>
+<a href="https://github.com/jkfran/jkfran.com/pulls"><img src="https://img.shields.io/github/issues-pr/jkfran/killport" alt="Pull Requests Badge"/></a>
+<a href="https://github.com/jkfran/jkfran.com/issues"><img src="https://img.shields.io/github/issues/jkfran/killport" alt="Issues Badge"/></a>
+<a href="https://github.com/jkfran/jkfran.com/graphs/contributors"><img alt="GitHub contributors" src="https://img.shields.io/github/contributors/jkfran/killport?color=2b9348"></a>
+<a href="https://github.com/jkfran/jkfran.com/blob/master/LICENSE"><img src="https://img.shields.io/github/license/jkfran/killport?color=2b9348" alt="License Badge"/></a>
+</div>
+<br>
+
 # killport
 
-`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux and macOS.
+`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux, macOS, and Windows.
 
 ## Features
 
 - Kill processes by port number
 - Supports multiple port numbers
 - Verbosity control
-- Works on Linux and macOS
+- Works on Linux, macOS and Windows
 
 ## Installation
 

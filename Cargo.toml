@@ -1,6 +1,6 @@
 [package]
 name = "killport"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -25,6 +25,16 @@ procfs = "0.15.1"
 libproc = "0.13.0"
 libc = "0.2"
 
+[target.'cfg(target_os = "windows")'.dependencies.windows-sys]
+version = "0.48"
+features = [
+  "Win32_Foundation",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_System_Threading",
+  "Win32_Networking_WinSock",
+  "Win32_System_Diagnostics_ToolHelp",
+]
+
 [dev-dependencies]
 assert_cmd = "2.0.10"
 tempfile = "3.4.0"
@@ -39,9 +49,21 @@ depends = "$auto"
 section = "admin"
 priority = "optional"
 assets = [
-  ["target/release/killport", "usr/bin/", "755"],
-  ["README.md", "usr/share/doc/killport/", "644"],
-  ["LICENSE", "usr/share/doc/killport/", "644"],
+  [
+    "target/release/killport",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "README.md",
+    "usr/share/doc/killport/",
+    "644",
+  ],
+  [
+    "LICENSE",
+    "usr/share/doc/killport/",
+    "644",
+  ],
 ]
 
 [target.aarch64-unknown-linux-gnu]
