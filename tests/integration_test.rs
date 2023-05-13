@@ -1,6 +1,6 @@
 use assert_cmd::Command;
-use std::{fs::File, path};
 use std::io::Write;
+use std::{fs::File, path};
 use tempfile::tempdir;
 
 #[test]
@@ -45,10 +45,15 @@ fn test_killport() {
     // Software termination signal from kill
     test_killport_signal_arg(tempdir_path, "sigterm");
     // Stack fault (obsolete)
-    #[cfg(all(any(target_os = "android", target_os = "emscripten",
-                  target_os = "fuchsia", target_os = "linux"),
-              not(any(target_arch = "mips", target_arch = "mips64",
-                      target_arch = "sparc64"))))]
+    #[cfg(all(
+        any(
+            target_os = "android",
+            target_os = "emscripten",
+            target_os = "fuchsia",
+            target_os = "linux"
+        ),
+        not(any(target_arch = "mips", target_arch = "mips64", target_arch = "sparc64"))
+    ))]
     test_killport_signal_arg(tempdir_path, "sigstkflt");
     // To parent on child stop or exit
     test_killport_signal_arg(tempdir_path, "sigchld");
@@ -78,22 +83,36 @@ fn test_killport() {
     #[cfg(not(target_os = "haiku"))]
     #[cfg_attr(docsrs, doc(cfg(all())))]
     test_killport_signal_arg(tempdir_path, "sigio");
-    #[cfg(any(target_os = "android", target_os = "emscripten",
-              target_os = "fuchsia", target_os = "linux"))]
+    #[cfg(any(
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "fuchsia",
+        target_os = "linux"
+    ))]
     #[cfg_attr(docsrs, doc(cfg(all())))]
     // Power failure imminent.
     test_killport_signal_arg(tempdir_path, "sigpwr");
     // Bad system call
     test_killport_signal_arg(tempdir_path, "sigsys");
-    #[cfg(not(any(target_os = "android", target_os = "emscripten",
-                  target_os = "fuchsia", target_os = "linux",
-                  target_os = "redox", target_os = "haiku")))]
+    #[cfg(not(any(
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "fuchsia",
+        target_os = "linux",
+        target_os = "redox",
+        target_os = "haiku"
+    )))]
     #[cfg_attr(docsrs, doc(cfg(all())))]
     // Emulator trap
     test_killport_signal_arg(tempdir_path, "sigemt");
-    #[cfg(not(any(target_os = "android", target_os = "emscripten",
-                  target_os = "fuchsia", target_os = "linux",
-                  target_os = "redox", target_os = "haiku")))]
+    #[cfg(not(any(
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "fuchsia",
+        target_os = "linux",
+        target_os = "redox",
+        target_os = "haiku"
+    )))]
     #[cfg_attr(docsrs, doc(cfg(all())))]
     // Information request
     test_killport_signal_arg(tempdir_path, "siginfo");
