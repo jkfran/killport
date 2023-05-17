@@ -81,22 +81,14 @@ unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
     }
 
     // Allocate the memory to use for the entries
-    let layout = Layout::new::<PROCESSENTRY32>();
-    let buffer = std::alloc::alloc_zeroed(layout);
-
-    let entry_ptr: *mut PROCESSENTRY32 = buffer.cast();
-
-    // Set the size of the structure to the correct value
-    let dw_size = std::ptr::addr_of_mut!((*entry_ptr).dwSize);
-    *dw_size = layout.size() as u32;
+    let mut entry: PROCESSENTRY32 = std::mem::zeroed();
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
 
     // Process the first item
-    if Process32First(handle, entry_ptr) != 0 {
+    if Process32First(handle, &mut entry) != 0 {
         let mut count = 0;
 
         loop {
-            let entry: PROCESSENTRY32 = entry_ptr.read();
-
             // Add matching processes to the output
             if pids.contains(&entry.th32ProcessID) {
                 pids.insert(entry.th32ParentProcessID);
@@ -104,16 +96,13 @@ unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
             }
 
             // Process the next entry
-            if Process32Next(handle, entry_ptr) == 0 {
+            if Process32Next(handle, &mut entry) == 0 {
                 break;
             }
         }
 
         info!("Collected {} parent processes", count);
     }
-
-    // Deallocate the memory used
-    std::alloc::dealloc(buffer, layout);
 
     // Close the handle we obtained
     CloseHandle(handle);
@@ -158,8 +147,11 @@ unsafe fn kill_process(pid: u32) -> Result<(), Error> {
 ///
 /// * `layout` - The layout of the memory
 /// * `family` - The address family type
-unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
-    let mut buffer = std::alloc::alloc(layout);
+unsafe fn get_extended_tcp_table(
+    layout: &mut Layout,
+    family: ADDRESS_FAMILY,
+) -> Result<*mut u8, Error> {
+    let mut buffer = std::alloc::alloc(*layout);
 
     // Size estimate for resizing the buffer
     let mut size = 0;
@@ -185,13 +177,17 @@ unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 
         // Handle buffer too small
         if result == ERROR_INSUFFICIENT_BUFFER {
-            // Resize the buffer to the new size
-            buffer = std::alloc::realloc(buffer, layout, size as usize);
+            // Deallocate the old memory layout
+            std::alloc::dealloc(buffer, *layout);
+            // Create the new memory layout from the new size and previous alignment
+            *layout = Layout::from_size_align_unchecked(size as usize, layout.align());
+            // Allocate the new chunk of memory
+            buffer = std::alloc::alloc(*layout);
             continue;
         }
 
         // Deallocate the buffer memory
-        std::alloc::dealloc(buffer, layout);
+        std::alloc::dealloc(buffer, *layout);
 
         // Handle unknown failures
         return Err(std::io::Error::new(
@@ -210,8 +206,11 @@ unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 ///
 /// * `layout` - The layout of the memory
 /// * `family` - The address family type
-unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
-    let mut buffer = std::alloc::alloc(layout);
+unsafe fn get_extended_udp_table(
+    layout: &mut Layout,
+    family: ADDRESS_FAMILY,
+) -> Result<*mut u8, Error> {
+    let mut buffer = std::alloc::alloc(*layout);
 
     // Size estimate for resizing the buffer
     let mut size = 0;
@@ -237,13 +236,17 @@ unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 
         // Handle buffer too small
         if result == ERROR_INSUFFICIENT_BUFFER {
-            // Resize the buffer to the new size
-            buffer = std::alloc::realloc(buffer, layout, size as usize);
+            // Deallocate the old memory layout
+            std::alloc::dealloc(buffer, *layout);
+            // Create the new size memory layout
+            *layout = Layout::from_size_align_unchecked(size as usize, layout.align());
+            // Allocate the new chunk of memory
+            buffer = std::alloc::alloc(*layout);
             continue;
         }
 
         // Deallocate the buffer memory
-        std::alloc::dealloc(buffer, layout);
+        std::alloc::dealloc(buffer, *layout);
 
         // Handle unknown failures
         return Err(std::io::Error::new(
@@ -265,8 +268,8 @@ unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
 /// * `pids` The set of process IDs to append to
 unsafe fn get_process_tcp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
-    let layout = Layout::new::<MIB_TCPTABLE_OWNER_MODULE>();
-    let buffer = get_extended_tcp_table(layout, AF_INET)?;
+    let mut layout = Layout::new::<MIB_TCPTABLE_OWNER_MODULE>();
+    let buffer = get_extended_tcp_table(&mut layout, AF_INET)?;
 
     let tcp_table: *const MIB_TCPTABLE_OWNER_MODULE = buffer.cast();
 
@@ -303,8 +306,8 @@ unsafe fn get_process_tcp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), E
 /// * `pids` The set of process IDs to append to
 unsafe fn get_process_tcp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
-    let layout = Layout::new::<MIB_TCP6TABLE_OWNER_MODULE>();
-    let buffer = get_extended_tcp_table(layout, AF_INET6)?;
+    let mut layout = Layout::new::<MIB_TCP6TABLE_OWNER_MODULE>();
+    let buffer = get_extended_tcp_table(&mut layout, AF_INET6)?;
 
     let tcp_table: *const MIB_TCP6TABLE_OWNER_MODULE = buffer.cast();
 
@@ -341,8 +344,8 @@ unsafe fn get_process_tcp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), E
 /// * `pids` The set of process IDs to append to
 unsafe fn get_process_udp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
-    let layout = Layout::new::<MIB_UDPTABLE_OWNER_MODULE>();
-    let buffer = get_extended_udp_table(layout, AF_INET)?;
+    let mut layout = Layout::new::<MIB_UDPTABLE_OWNER_MODULE>();
+    let buffer = get_extended_udp_table(&mut layout, AF_INET)?;
 
     let udp_table: *const MIB_UDPTABLE_OWNER_MODULE = buffer.cast();
 
@@ -378,8 +381,8 @@ unsafe fn get_process_udp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), E
 /// * `pids` The set of process IDs to append to
 unsafe fn get_process_udp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
     // Create the memory layout for the table
-    let layout = Layout::new::<MIB_UDP6TABLE_OWNER_MODULE>();
-    let buffer = get_extended_udp_table(layout, AF_INET6)?;
+    let mut layout = Layout::new::<MIB_UDP6TABLE_OWNER_MODULE>();
+    let buffer = get_extended_udp_table(&mut layout, AF_INET6)?;
 
     let udp_table: *const MIB_UDP6TABLE_OWNER_MODULE = buffer.cast();
 
