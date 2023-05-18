@@ -64,6 +64,7 @@ jobs:
           - s390x-unknown-linux-gnu
           - aarch64-apple-darwin
           - x86_64-apple-darwin
+          - x86_64-pc-windows-gnu
     runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - name: Checkout repository
@@ -75,6 +76,10 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
+
+      - name: Install mingw-w64
+        run: sudo apt install -y mingw-w64
+        if: matrix.target == 'x86_64-pc-windows-gnu'
 
       - name: Build target
         uses: actions-rs/cargo@v1
@@ -88,7 +93,11 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           short_target=$(echo "${{ matrix.target }}" | sed 's/-unknown//')
-          tar czvf ../../../killport-${short_target}.tar.gz killport
+          if [[ $short_target == *"windows"* ]]; then
+            tar czvf ../../../killport-${short_target}.tar.gz killport.exe
+          else
+            tar czvf ../../../killport-${short_target}.tar.gz killport
+          fi
           cd -
 
       - name: Extract version from Cargo.toml
@@ -97,7 +106,7 @@ jobs:
           VERSION=$(grep '^version =' Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"' | tr -d "\n")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Found version: $VERSION"
-          echo "::set-output name=version::$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v1
