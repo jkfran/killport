@@ -267,6 +267,7 @@ trait TableClass {
     ///
     /// # Arguments
     ///
+    /// * `table` - The pointer to the table class
     /// * `port` - The port to search for
     /// * `pids` - The process IDs to insert into
     unsafe fn get_processes(table: *const Self, port: u16, pids: &mut HashSet<u32>);
@@ -295,6 +296,7 @@ macro_rules! impl_get_processes {
     };
 }
 
+/// TCP IPv4 table class
 impl TableClass for MIB_TCPTABLE_OWNER_MODULE {
     const TABLE_FN: GetExtendedTable = GetExtendedTcpTable;
     const FAMILY: AddressFamily = INET;
@@ -303,6 +305,7 @@ impl TableClass for MIB_TCPTABLE_OWNER_MODULE {
     impl_get_processes!(MIB_TCPROW_OWNER_MODULE);
 }
 
+/// TCP IPv6 table class
 impl TableClass for MIB_TCP6TABLE_OWNER_MODULE {
     const TABLE_FN: GetExtendedTable = GetExtendedTcpTable;
     const FAMILY: AddressFamily = INET6;
@@ -311,6 +314,7 @@ impl TableClass for MIB_TCP6TABLE_OWNER_MODULE {
     impl_get_processes!(MIB_TCP6ROW_OWNER_MODULE);
 }
 
+/// UDP IPv4 table class
 impl TableClass for MIB_UDPTABLE_OWNER_MODULE {
     const TABLE_FN: GetExtendedTable = GetExtendedUdpTable;
     const FAMILY: AddressFamily = INET;
@@ -319,6 +323,7 @@ impl TableClass for MIB_UDPTABLE_OWNER_MODULE {
     impl_get_processes!(MIB_UDPROW_OWNER_MODULE);
 }
 
+/// UDP IPv6 table class
 impl TableClass for MIB_UDP6TABLE_OWNER_MODULE {
     const TABLE_FN: GetExtendedTable = GetExtendedUdpTable;
     const FAMILY: AddressFamily = INET6;
