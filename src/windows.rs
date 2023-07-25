@@ -1,13 +1,17 @@
 use crate::KillPortSignalOptions;
-use log::{debug, info};
+use log::info;
 use std::{
-    alloc::Layout,
+    alloc::{alloc, dealloc, Layout},
     collections::HashSet,
-    io::{Error, ErrorKind},
+    ffi::c_void,
+    io::{Error, ErrorKind, Result},
+    ptr::addr_of,
+    slice,
 };
 use windows_sys::Win32::{
     Foundation::{
-        CloseHandle, GetLastError, ERROR_INSUFFICIENT_BUFFER, INVALID_HANDLE_VALUE, NO_ERROR,
+        CloseHandle, GetLastError, BOOL, ERROR_INSUFFICIENT_BUFFER, FALSE, HANDLE,
+        INVALID_HANDLE_VALUE, NO_ERROR, WIN32_ERROR,
     },
     NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_MODULE,
@@ -15,7 +19,7 @@ use windows_sys::Win32::{
         MIB_UDP6ROW_OWNER_MODULE, MIB_UDP6TABLE_OWNER_MODULE, MIB_UDPROW_OWNER_MODULE,
         MIB_UDPTABLE_OWNER_MODULE, TCP_TABLE_OWNER_MODULE_ALL, UDP_TABLE_OWNER_MODULE,
     },
-    Networking::WinSock::{ADDRESS_FAMILY, AF_INET, AF_INET6},
+    Networking::WinSock::{AF_INET, AF_INET6},
     System::{
         Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32,
@@ -34,14 +38,20 @@ use windows_sys::Win32::{
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
-pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<bool, Error> {
-    let mut pids = HashSet::new();
+pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<bool> {
+    let mut pids: HashSet<u32> = HashSet::new();
     unsafe {
-        // Collect the PIDs
-        get_process_tcp_v4(port, &mut pids)?;
-        get_process_tcp_v6(port, &mut pids)?;
-        get_process_udp_v4(port, &mut pids)?;
-        get_process_udp_v6(port, &mut pids)?;
+        // Find processes in the TCP IPv4 table
+        use_extended_table::<MIB_TCPTABLE_OWNER_MODULE>(port, &mut pids)?;
+
+        // Find processes in the TCP IPv6 table
+        use_extended_table::<MIB_TCP6TABLE_OWNER_MODULE>(port, &mut pids)?;
+
+        // Find processes in the UDP IPv4 table
+        use_extended_table::<MIB_UDPTABLE_OWNER_MODULE>(port, &mut pids)?;
+
+        // Find processes in the UDP IPv6 table
+        use_extended_table::<MIB_UDP6TABLE_OWNER_MODULE>(port, &mut pids)?;
 
         // Nothing was found
         if pids.is_empty() {
@@ -52,7 +62,6 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
         collect_parents(&mut pids)?;
 
         for pid in pids {
-            debug!("Found process with PID {}", pid);
             kill_process(pid)?;
         }
 
@@ -67,36 +76,28 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
 /// # Arguments
 ///
 /// * `pids` - The set to match PIDs from and insert PIDs into
-unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
+unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<()> {
     // Request a snapshot handle
-    let handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    let handle: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
     // Ensure we got a valid handle
     if handle == INVALID_HANDLE_VALUE {
-        let error = GetLastError();
-        return Err(std::io::Error::new(
+        let error: WIN32_ERROR = GetLastError();
+        return Err(Error::new(
             ErrorKind::Other,
             format!("Failed to get handle to processes: {:#x}", error),
         ));
     }
 
     // Allocate the memory to use for the entries
-    let layout = Layout::new::<PROCESSENTRY32>();
-    let buffer = std::alloc::alloc_zeroed(layout);
-
-    let entry_ptr: *mut PROCESSENTRY32 = buffer.cast();
-
-    // Set the size of the structure to the correct value
-    let dw_size = std::ptr::addr_of_mut!((*entry_ptr).dwSize);
-    *dw_size = layout.size() as u32;
+    let mut entry: PROCESSENTRY32 = std::mem::zeroed();
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
 
     // Process the first item
-    if Process32First(handle, entry_ptr) != 0 {
+    if Process32First(handle, &mut entry) != FALSE {
         let mut count = 0;
 
         loop {
-            let entry: PROCESSENTRY32 = entry_ptr.read();
-
             // Add matching processes to the output
             if pids.contains(&entry.th32ProcessID) {
                 pids.insert(entry.th32ParentProcessID);
@@ -104,7 +105,7 @@ unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
             }
 
             // Process the next entry
-            if Process32Next(handle, entry_ptr) == 0 {
+            if Process32Next(handle, &mut entry) == FALSE {
                 break;
             }
         }
@@ -112,10 +113,7 @@ unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
         info!("Collected {} parent processes", count);
     }
 
-    // Deallocate the memory used
-    std::alloc::dealloc(buffer, layout);
-
-    // Close the handle we obtained
+    // Close the handle now that its no longer needed
     CloseHandle(handle);
 
     Ok(())
@@ -126,23 +124,28 @@ unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<(), Error> {
 /// # Arguments
 ///
 /// * `pid` - The process ID
-unsafe fn kill_process(pid: u32) -> Result<(), Error> {
+unsafe fn kill_process(pid: u32) -> Result<()> {
     info!("Killing process with PID {}", pid);
 
     // Open the process handle with intent to terminate
-    let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+    let handle: HANDLE = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
     if handle == 0 {
-        let error = GetLastError();
-        return Err(std::io::Error::new(
+        let error: WIN32_ERROR = GetLastError();
+        return Err(Error::new(
             ErrorKind::Other,
             format!("Failed to obtain handle to process {}: {:#x}", pid, error),
         ));
     }
 
-    let result = TerminateProcess(handle, 0);
-    if result == 0 {
-        let error = GetLastError();
-        return Err(std::io::Error::new(
+    // Terminate the process
+    let result: BOOL = TerminateProcess(handle, 0);
+
+    // Close the handle now that its no longer needed
+    CloseHandle(handle);
+
+    if result == FALSE {
+        let error: WIN32_ERROR = GetLastError();
+        return Err(Error::new(
             ErrorKind::Other,
             format!("Failed to terminate process {}: {:#x}", pid, error),
         ));
@@ -151,30 +154,37 @@ unsafe fn kill_process(pid: u32) -> Result<(), Error> {
     Ok(())
 }
 
-/// Reads the extended TCP table into memory using the provided address `family`
-/// to determine the output type. Returns the memory pointer to the loaded struct
+/// Reads the extended table of the specified generic [`TableClass`] iterating
+/// the processes in that extended table checking if any bind the provided `port`
+/// those that do will have the process ID inserted into `pids`
 ///
 /// # Arguments
 ///
-/// * `layout` - The layout of the memory
-/// * `family` - The address family type
-unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
-    let mut buffer = std::alloc::alloc(layout);
+/// * `port` - The port to check for
+/// * `pids` - The output list of process IDs
+unsafe fn use_extended_table<T>(port: u16, pids: &mut HashSet<u32>) -> Result<()>
+where
+    T: TableClass,
+{
+    // Allocation of initial memory
+    let mut layout: Layout = Layout::new::<T>();
+    let mut buffer: *mut u8 = alloc(layout);
 
-    // Size estimate for resizing the buffer
-    let mut size = 0;
+    // Current buffer size later changed by the fn call to be the estimated size
+    // for resizing the buffer
+    let mut size: u32 = layout.size() as u32;
 
-    // Result of asking for the TCP table
-    let mut result: u32;
+    // Result of asking for the table
+    let mut result: WIN32_ERROR;
 
     loop {
-        // Ask windows for the extended TCP table mapping between TCP ports and PIDs
-        result = GetExtendedTcpTable(
+        // Ask windows for the extended table
+        result = (T::TABLE_FN)(
             buffer.cast(),
             &mut size,
-            1,
-            family as u32,
-            TCP_TABLE_OWNER_MODULE_ALL,
+            FALSE,
+            T::FAMILY,
+            T::TABLE_CLASS,
             0,
         );
 
@@ -183,224 +193,141 @@ unsafe fn get_extended_tcp_table(layout: Layout, family: ADDRESS_FAMILY) -> Resu
             break;
         }
 
-        // Handle buffer too small
-        if result == ERROR_INSUFFICIENT_BUFFER {
-            // Resize the buffer to the new size
-            buffer = std::alloc::realloc(buffer, layout, size as usize);
-            continue;
-        }
-
-        // Deallocate the buffer memory
-        std::alloc::dealloc(buffer, layout);
-
-        // Handle unknown failures
-        return Err(std::io::Error::new(
-            ErrorKind::Other,
-            "Failed to get size estimate for TCP table",
-        ));
-    }
-
-    Ok(buffer)
-}
-
-/// Reads the extended UDP table into memory using the provided address `family`
-/// to determine the output type. Returns the memory pointer to the loaded struct
-///
-/// # Arguments
-///
-/// * `layout` - The layout of the memory
-/// * `family` - The address family type
-unsafe fn get_extended_udp_table(layout: Layout, family: ADDRESS_FAMILY) -> Result<*mut u8, Error> {
-    let mut buffer = std::alloc::alloc(layout);
-
-    // Size estimate for resizing the buffer
-    let mut size = 0;
-
-    // Result of asking for the TCP table
-    let mut result: u32;
-
-    loop {
-        // Ask windows for the extended UDP table mapping between UDP ports and PIDs
-        result = GetExtendedUdpTable(
-            buffer.cast(),
-            &mut size,
-            1,
-            family as u32,
-            UDP_TABLE_OWNER_MODULE,
-            0,
-        );
-
-        // No error occurred
-        if result == NO_ERROR {
-            break;
-        }
+        // Always deallocate the memory regardless of the error
+        // (Resizing needs to reallocate the memory anyway)
+        dealloc(buffer, layout);
 
         // Handle buffer too small
         if result == ERROR_INSUFFICIENT_BUFFER {
-            // Resize the buffer to the new size
-            buffer = std::alloc::realloc(buffer, layout, size as usize);
+            // Create the new memory layout from the new size and previous alignment
+            layout = Layout::from_size_align_unchecked(size as usize, layout.align());
+            // Allocate the new chunk of memory
+            buffer = alloc(layout);
             continue;
         }
 
-        // Deallocate the buffer memory
-        std::alloc::dealloc(buffer, layout);
-
         // Handle unknown failures
-        return Err(std::io::Error::new(
+        return Err(Error::new(
             ErrorKind::Other,
-            "Failed to get size estimate for UDP table",
+            format!(
+                "Failed to get size estimate for extended table: {:#x}",
+                result
+            ),
         ));
     }
 
-    Ok(buffer)
-}
+    let table: *const T = buffer.cast();
 
-/// Searches through the IPv4 extended TCP table for any processes
-/// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` set
-///
-/// # Arguments
-///
-/// * `port` The port to search for
-/// * `pids` The set of process IDs to append to
-unsafe fn get_process_tcp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
-    // Create the memory layout for the table
-    let layout = Layout::new::<MIB_TCPTABLE_OWNER_MODULE>();
-    let buffer = get_extended_tcp_table(layout, AF_INET)?;
-
-    let tcp_table: *const MIB_TCPTABLE_OWNER_MODULE = buffer.cast();
-
-    // Read the length of the table
-    let length = std::ptr::addr_of!((*tcp_table).dwNumEntries).read_unaligned() as usize;
-
-    // Get a pointer to the start of the table
-    let table_ptr: *const MIB_TCPROW_OWNER_MODULE = std::ptr::addr_of!((*tcp_table).table).cast();
-
-    // Find the process IDs
-    std::slice::from_raw_parts(table_ptr, length)
-        .iter()
-        .for_each(|element| {
-            // Convert the port value
-            let local_port: u16 = (element.dwLocalPort as u16).to_be();
-            if local_port == port {
-                pids.insert(element.dwOwningPid);
-            }
-        });
+    // Obtain the processes from the table
+    T::get_processes(table, port, pids);
 
     // Deallocate the buffer memory
-    std::alloc::dealloc(buffer, layout);
+    dealloc(buffer, layout);
 
     Ok(())
 }
 
-/// Searches through the IPv6 extended TCP table for any processes
-/// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` set
-///
-/// # Arguments
-///
-/// * `port` The port to search for
-/// * `pids` The set of process IDs to append to
-unsafe fn get_process_tcp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
-    // Create the memory layout for the table
-    let layout = Layout::new::<MIB_TCP6TABLE_OWNER_MODULE>();
-    let buffer = get_extended_tcp_table(layout, AF_INET6)?;
+/// Type of the GetExtended[UDP/TCP]Table Windows API function
+type GetExtendedTable =
+    unsafe extern "system" fn(*mut c_void, *mut u32, i32, AddressFamily, i32, u32) -> WIN32_ERROR;
 
-    let tcp_table: *const MIB_TCP6TABLE_OWNER_MODULE = buffer.cast();
+/// For some reason the actual INET types are u16 so this
+/// is just a casted version to u32
+type AddressFamily = u32;
 
-    // Read the length of the table
-    let length = std::ptr::addr_of!((*tcp_table).dwNumEntries).read_unaligned() as usize;
+/// IPv4 Address family
+const INET: AddressFamily = AF_INET as u32;
+/// IPv6 Address family
+const INET6: AddressFamily = AF_INET6 as u32;
 
-    // Get a pointer to the start of the table
-    let table_ptr: *const MIB_TCP6ROW_OWNER_MODULE = std::ptr::addr_of!((*tcp_table).table).cast();
+/// Table class type (either TCP_TABLE_CLASS for TCP or UDP_TABLE_CLASS for UDP)
+type TableClassType = i32;
 
-    // Find the process IDs
-    std::slice::from_raw_parts(table_ptr, length)
-        .iter()
-        .for_each(|element| {
-            // Convert the port value
-            let local_port: u16 = (element.dwLocalPort as u16).to_be();
-            if local_port == port {
-                pids.insert(element.dwOwningPid);
-            }
-        });
+/// TCP class type for the owner to module mappings
+const TCP_TYPE: TableClassType = TCP_TABLE_OWNER_MODULE_ALL;
+/// UDP class type for the owner to module mappings
+const UDP_TYPE: TableClassType = UDP_TABLE_OWNER_MODULE;
 
-    // Deallocate the buffer memory
-    std::alloc::dealloc(buffer, layout);
+/// Trait implemented by extended tables that can
+/// be enumerated for processes that match a
+/// specific PID
+trait TableClass {
+    /// Windows function for loading this table class
+    const TABLE_FN: GetExtendedTable;
 
-    Ok(())
+    /// Address family type
+    const FAMILY: AddressFamily;
+
+    /// Windows table class type
+    const TABLE_CLASS: TableClassType;
+
+    /// Iterates the contents of the extended table inserting any
+    /// process entires that match the provided `port` into the
+    /// `pids` set
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The pointer to the table class
+    /// * `port` - The port to search for
+    /// * `pids` - The process IDs to insert into
+    unsafe fn get_processes(table: *const Self, port: u16, pids: &mut HashSet<u32>);
 }
 
-/// Searches through the IPv4 extended UDP table for any processes
-/// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` set
-///
-/// # Arguments
-///
-/// * `port` The port to search for
-/// * `pids` The set of process IDs to append to
-unsafe fn get_process_udp_v4(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
-    // Create the memory layout for the table
-    let layout = Layout::new::<MIB_UDPTABLE_OWNER_MODULE>();
-    let buffer = get_extended_udp_table(layout, AF_INET)?;
+/// Implementation for get_processes is identical for all of the
+/// implementations only difference is the type of row pointer
+/// other than that all the fields accessed are the same to in
+/// order to prevent repeating this its a macro now
+macro_rules! impl_get_processes {
+    ($ty:ty) => {
+        unsafe fn get_processes(table: *const Self, port: u16, pids: &mut HashSet<u32>) {
+            let row_ptr: *const $ty = addr_of!((*table).table).cast();
+            let length: usize = addr_of!((*table).dwNumEntries).read_unaligned() as usize;
 
-    let udp_table: *const MIB_UDPTABLE_OWNER_MODULE = buffer.cast();
-
-    // Read the length of the table
-    let length = std::ptr::addr_of!((*udp_table).dwNumEntries).read_unaligned() as usize;
-
-    // Get a pointer to the start of the table
-    let table_ptr: *const MIB_UDPROW_OWNER_MODULE = std::ptr::addr_of!((*udp_table).table).cast();
-
-    // Find the process IDs
-    std::slice::from_raw_parts(table_ptr, length)
-        .iter()
-        .for_each(|element| {
-            // Convert the port value
-            let local_port: u16 = (element.dwLocalPort as u16).to_be();
-            if local_port == port {
-                pids.insert(element.dwOwningPid);
-            }
-        });
-
-    // Deallocate the buffer memory
-    std::alloc::dealloc(buffer, layout);
-    Ok(())
+            slice::from_raw_parts(row_ptr, length)
+                .iter()
+                .for_each(|element| {
+                    // Convert the port value
+                    let local_port: u16 = (element.dwLocalPort as u16).to_be();
+                    if local_port == port {
+                        pids.insert(element.dwOwningPid);
+                    }
+                });
+        }
+    };
 }
 
-/// Searches through the IPv6 extended UDP table for any processes
-/// that are listening on the provided `port`. Will append any processes
-/// found onto the provided `pids` set
-///
-/// # Arguments
-///
-/// * `port` The port to search for
-/// * `pids` The set of process IDs to append to
-unsafe fn get_process_udp_v6(port: u16, pids: &mut HashSet<u32>) -> Result<(), Error> {
-    // Create the memory layout for the table
-    let layout = Layout::new::<MIB_UDP6TABLE_OWNER_MODULE>();
-    let buffer = get_extended_udp_table(layout, AF_INET6)?;
+/// TCP IPv4 table class
+impl TableClass for MIB_TCPTABLE_OWNER_MODULE {
+    const TABLE_FN: GetExtendedTable = GetExtendedTcpTable;
+    const FAMILY: AddressFamily = INET;
+    const TABLE_CLASS: TableClassType = TCP_TYPE;
 
-    let udp_table: *const MIB_UDP6TABLE_OWNER_MODULE = buffer.cast();
+    impl_get_processes!(MIB_TCPROW_OWNER_MODULE);
+}
 
-    // Read the length of the table
-    let length = std::ptr::addr_of!((*udp_table).dwNumEntries).read_unaligned() as usize;
+/// TCP IPv6 table class
+impl TableClass for MIB_TCP6TABLE_OWNER_MODULE {
+    const TABLE_FN: GetExtendedTable = GetExtendedTcpTable;
+    const FAMILY: AddressFamily = INET6;
+    const TABLE_CLASS: TableClassType = TCP_TYPE;
 
-    // Get a pointer to the start of the table
-    let table_ptr: *const MIB_UDP6ROW_OWNER_MODULE = std::ptr::addr_of!((*udp_table).table).cast();
+    impl_get_processes!(MIB_TCP6ROW_OWNER_MODULE);
+}
 
-    // Find the process IDs
-    std::slice::from_raw_parts(table_ptr, length)
-        .iter()
-        .for_each(|element| {
-            // Convert the port value
-            let local_port: u16 = (element.dwLocalPort as u16).to_be();
-            if local_port == port {
-                pids.insert(element.dwOwningPid);
-            }
-        });
+/// UDP IPv4 table class
+impl TableClass for MIB_UDPTABLE_OWNER_MODULE {
+    const TABLE_FN: GetExtendedTable = GetExtendedUdpTable;
+    const FAMILY: AddressFamily = INET;
+    const TABLE_CLASS: TableClassType = UDP_TYPE;
 
-    // Deallocate the buffer memory
-    std::alloc::dealloc(buffer, layout);
-    Ok(())
+    impl_get_processes!(MIB_UDPROW_OWNER_MODULE);
+}
+
+/// UDP IPv6 table class
+impl TableClass for MIB_UDP6TABLE_OWNER_MODULE {
+    const TABLE_FN: GetExtendedTable = GetExtendedUdpTable;
+    const FAMILY: AddressFamily = INET6;
+    const TABLE_CLASS: TableClassType = UDP_TYPE;
+
+    impl_get_processes!(MIB_UDP6ROW_OWNER_MODULE);
 }
