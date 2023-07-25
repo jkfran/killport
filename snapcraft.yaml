@@ -1,5 +1,5 @@
 name: killport
-version: "0.9.0"
+version: "0.9.1"
 summary: A CLI tool to kill processes using specified ports
 description: |
   Killport is a command-line utility to find and kill processes listening on specified ports.
