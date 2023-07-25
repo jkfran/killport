@@ -1,6 +1,6 @@
 [package]
 name = "killport"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -12,10 +12,10 @@ keywords = ["cli", "port", "process", "kill", "linux"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-log = "0.4.17"
+log = "0.4.19"
 env_logger = "0.10.0"
-clap-verbosity-flag = "2.0.0"
-clap = { version = "4.1.8", features = ["derive"] }
+clap-verbosity-flag = "2.0.1"
+clap = { version = "4.3.19", features = ["derive"] }
 nix = "0.26.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
@@ -36,36 +36,5 @@ features = [
 ]
 
 [dev-dependencies]
-assert_cmd = "2.0.10"
-tempfile = "3.4.0"
-
-[build-dependencies]
-cargo-deb = "1.42.2"
-
-[package.metadata.deb]
-maintainer = "Francisco Jimenez Cabrera <jkfran@gmail.com>"
-copyright = "Copyright (c) 2023, Francisco Jimenez Cabrera <jkfran@gmail.com>"
-depends = "$auto"
-section = "admin"
-priority = "optional"
-assets = [
-  [
-    "target/release/killport",
-    "usr/bin/",
-    "755",
-  ],
-  [
-    "README.md",
-    "usr/share/doc/killport/",
-    "644",
-  ],
-  [
-    "LICENSE",
-    "usr/share/doc/killport/",
-    "644",
-  ],
-]
-
-[target.aarch64-unknown-linux-gnu]
-# Update the path to the binary for arm64 build
-deb.output = "target/debian/killport_${{ env.VERSION }}_arm64.deb"
+assert_cmd = "2.0.12"
+tempfile = "3.7.0"
