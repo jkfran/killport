@@ -23,7 +23,7 @@
 
 ### Using Homebrew
 
-Run the following command to install killport using Homebrew.
+Run the following command to install [killport](https://formulae.brew.sh/formula/killport) using [Homebrew](https://brew.sh/).
 
 ```sh
 brew install killport
