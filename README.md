@@ -26,7 +26,6 @@
 Run the following command to install killport using Homebrew.
 
 ```sh
-brew tap jkfran/killport
 brew install killport
 ```
 
