@@ -14,6 +14,7 @@ use tokio::runtime::Runtime;
 /// Interface for killable targets such as native process and docker container.
 trait Killable {
     fn kill(&self, signal: KillPortSignalOptions) -> Result<bool, Error>;
+    fn get_type(&self) -> String;
 }
 
 #[derive(Debug)]
@@ -100,6 +101,20 @@ impl Killable for NativeProcess {
 
         Ok(true)
     }
+
+    /// Returns the type of the killable target.
+    ///
+    /// This method is used to identify the type of the target (either a native process or a Docker container)
+    /// that is being handled. This information can be useful for logging, error handling, or other needs
+    /// where type of the target is relevant.
+    ///
+    /// # Returns
+    ///
+    /// * `String` - A string that describes the type of the killable target. For a `NativeProcess` it will return "process",
+    /// and for a `DockerContainer` it will return "container".
+    fn get_type(&self) -> String {
+        "process".to_string()
+    }
 }
 
 #[derive(Debug)]
@@ -151,24 +166,46 @@ impl Killable for DockerContainer {
 
         Ok(true)
     }
+
+    /// Returns the type of the killable target.
+    ///
+    /// This method is used to identify the type of the target (either a native process or a Docker container)
+    /// that is being handled. This information can be useful for logging, error handling, or other needs
+    /// where type of the target is relevant.
+    ///
+    /// # Returns
+    ///
+    /// * `String` - A string that describes the type of the killable target. For a `NativeProcess` it will return "process",
+    /// and for a `DockerContainer` it will return "container".
+    fn get_type(&self) -> String {
+        "container".to_string()
+    }
 }
 
 /// Attempts to kill processes listening on the specified `port`.
-///
-/// Returns a `Result` with `true` if any processes were killed, `false` if no
-/// processes were found listening on the port, and an `Error` if the operation
-/// failed or the platform is unsupported.
 ///
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
 /// * `signal` - A enum value representing the signal type.
-pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Result<bool, Error> {
+///
+/// # Returns
+///
+/// A `Result` containing a tuple. The first element is a boolean indicating if
+/// at least one process was killed (true if yes, false otherwise). The second
+/// element is a string indicating the type of the killed entity. An `Error` is
+/// returned if the operation failed or the platform is unsupported.
+pub fn kill_processes_by_port(
+    port: u16,
+    signal: KillPortSignalOptions,
+) -> Result<(bool, String), Error> {
     let mut killed_any = false;
+    let mut killable_type = String::new();
     let target_killables = find_target_killables(port)?;
 
     for killable in target_killables {
         killed_any |= killable.kill(signal)?;
+        killable_type = killable.get_type();
     }
 
     if !killed_any {
@@ -178,7 +215,7 @@ pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Resul
         ));
     }
 
-    Ok(killed_any)
+    Ok((killed_any, killable_type))
 }
 
 /// Finds the killables (native processes and docker containers) associated with the specified `port`.
@@ -188,7 +225,6 @@ pub fn kill_processes_by_port(port: u16, signal: KillPortSignalOptions) -> Resul
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
-#[cfg(target_os = "linux")]
 fn find_target_killables(port: u16) -> Result<Vec<Box<dyn Killable>>, Error> {
     let mut target_killables: Vec<Box<dyn Killable>> = vec![];
 
@@ -213,7 +249,6 @@ fn find_target_killables(port: u16) -> Result<Vec<Box<dyn Killable>>, Error> {
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
-#[cfg(target_os = "linux")]
 fn find_target_inodes(port: u16) -> Vec<u64> {
     let tcp = procfs::net::tcp();
     let tcp6 = procfs::net::tcp6();

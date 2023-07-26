@@ -31,14 +31,20 @@ use windows_sys::Win32::{
 
 /// Attempts to kill processes listening on the specified `port`.
 ///
-/// Returns a `Result` with `true` if any processes were killed, `false` if no
-/// processes were found listening on the port, and an `Error` if the operation
-/// failed or the platform is unsupported.
-///
 /// # Arguments
 ///
 /// * `port` - A u16 value representing the port number.
-pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<bool> {
+///
+/// # Returns
+///
+/// A `Result` containing a tuple. The first element is a boolean indicating if
+/// at least one process was killed (true if yes, false otherwise). The second
+/// element is a string indicating the type of the killed entity. An `Error` is
+/// returned if the operation failed or the platform is unsupported.
+pub fn kill_processes_by_port(
+    port: u16,
+    _: KillPortSignalOptions,
+) -> Result<(bool, String), Error> {
     let mut pids: HashSet<u32> = HashSet::new();
     unsafe {
         // Find processes in the TCP IPv4 table
@@ -55,7 +61,7 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
 
         // Nothing was found
         if pids.is_empty() {
-            return Ok(false);
+            return Ok((false, "None".to_string()));
         }
 
         // Collect parents of the PIDs
@@ -66,7 +72,7 @@ pub fn kill_processes_by_port(port: u16, _: KillPortSignalOptions) -> Result<boo
         }
 
         // Something had to have been killed to reach here
-        Ok(true)
+        Ok((true, "process".to_string()))
     }
 }
 

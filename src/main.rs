@@ -38,7 +38,7 @@ struct KillPortArgs {
     /// A list of port numbers to kill processes on.
     #[arg(
         name = "ports",
-        help = "The list of port numbers to kill processes on",
+        help = "The list of port numbers to kill processes or containers on",
         required = true
     )]
     ports: Vec<u16>,
@@ -87,11 +87,14 @@ fn main() {
     // Attempt to kill processes listening on specified ports
     for port in args.ports {
         match kill_processes_by_port(port, signal) {
-            Ok(killed) => {
+            Ok((killed, killable_type)) => {
                 if killed {
-                    println!("Successfully killed process listening on port {}", port);
+                    println!(
+                        "Successfully killed {} listening on port {}",
+                        killable_type, port
+                    );
                 } else {
-                    println!("No processes found using port {}", port);
+                    println!("No services found using port {}", port);
                 }
             }
             Err(err) => {
