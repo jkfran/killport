@@ -15,9 +15,11 @@
 ## Features
 
 - Kill processes by port number
+- Kill docker container by port number
 - Supports multiple port numbers
 - Verbosity control
 - Works on Linux, macOS and Windows
+- Serveral signal types (SIGTERM, SIGKILL)
 
 ## Installation
 
