@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use std::fs::File;
 use std::io::Write;
+use std::{thread, time};
 use tempfile::tempdir;
 
 #[test]
