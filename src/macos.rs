@@ -38,10 +38,16 @@ fn collect_proc() -> Vec<TaskAllInfo> {
 ///
 /// # Returns
 ///
-/// A `Result` containing a boolean value. If true, at least one process was killed; otherwise, false.
-pub fn kill_processes_by_port(port: u16, signal: Signal) -> Result<bool, io::Error> {
+/// A `Result` containing a tuple. The first element is a boolean indicating if
+/// at least one process was killed (true if yes, false otherwise). The second
+/// element is a string indicating the type of the killed entity.
+pub fn kill_processes_by_port(
+    port: u16,
+    signal: Signal,
+) -> Result<(bool, String), io::Error> {
     let process_infos = collect_proc();
     let mut killed = false;
+    let killable_type = String::from("process"); // assuming all are Processes for now
 
     for task in process_infos {
         let pid = task.pbsd.pbi_pid as i32;
@@ -106,5 +112,5 @@ pub fn kill_processes_by_port(port: u16, signal: Signal) -> Result<bool, io::Err
         }
     }
 
-    Ok(killed)
+    Ok((killed, killable_type))
 }

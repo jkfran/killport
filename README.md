@@ -15,18 +15,19 @@
 ## Features
 
 - Kill processes by port number
+- Kill docker container by port number
 - Supports multiple port numbers
 - Verbosity control
 - Works on Linux, macOS and Windows
+- Serveral signal types (SIGTERM, SIGKILL)
 
 ## Installation
 
 ### Using Homebrew
 
-Run the following command to install killport using Homebrew.
+Run the following command to install [killport](https://formulae.brew.sh/formula/killport) using [Homebrew](https://brew.sh/).
 
 ```sh
-brew tap jkfran/killport
 brew install killport
 ```
 
