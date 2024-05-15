@@ -18,19 +18,12 @@ use macos::kill_processes_by_port;
 #[cfg(target_os = "windows")]
 use windows::kill_processes_by_port;
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::error;
-use std::process::exit;
+use nix::sys::signal::Signal;
+use std::{process::exit, str::FromStr};
 
-/// The `KillPortSignalOptions` enum is used to specify signal types on the command-line arguments.
-#[derive(Clone, Copy, Debug, ValueEnum)]
-pub enum KillPortSignalOptions {
-    SIGKILL,
-    SIGTERM,
-}
-
-/// The `KillPortArgs` struct is used to parse command-line arguments for the
 /// `killport` utility.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -49,13 +42,26 @@ struct KillPortArgs {
         short = 's',
         name = "SIG",
         help = "SIG is a signal name",
-        default_value = "sigterm"
+        default_value = "sigterm",
+        value_parser = parse_signal
     )]
-    signal: KillPortSignalOptions,
+    signal: Signal,
 
     /// A verbosity flag to control the level of logging output.
     #[command(flatten)]
     verbose: Verbosity<WarnLevel>,
+}
+
+fn parse_signal(arg: &str) -> Result<Signal, std::io::Error> {
+    let str_arg = arg.parse::<String>();
+    match str_arg {
+        Ok(str_arg) => {
+            let signal_str = str_arg.to_uppercase();
+            let signal = Signal::from_str(signal_str.as_str())?;
+            return Ok(signal);
+        }
+        Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+    }
 }
 
 /// The `main` function is the entry point of the `killport` utility.

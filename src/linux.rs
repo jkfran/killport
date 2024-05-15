@@ -1,8 +1,6 @@
-use crate::KillPortSignalOptions;
-
 use bollard::container::{KillContainerOptions, ListContainersOptions};
 use bollard::Docker;
-use log::{debug, info};
+use log::{debug, info, warn};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use procfs::process::FDTarget;
@@ -197,7 +195,7 @@ impl Killable for DockerContainer {
 /// returned if the operation failed or the platform is unsupported.
 pub fn kill_processes_by_port(
     port: u16,
-    signal: KillPortSignalOptions,
+    signal: Signal,
 ) -> Result<(bool, String), Error> {
     let mut killed_any = false;
     let mut killable_type = String::new();
