@@ -10,16 +10,16 @@
 
 # killport
 
-`killport` is a command-line utility for killing processes listening on specific ports. It's designed to be simple, fast, and effective. The tool is built with Rust and works on Linux, macOS, and Windows.
+`killport` is a command-line utility designed for efficiently terminating processes and containers listening on specified ports. It supports both single and multiple port operations, enhancing system management across Linux, macOS, and Windows platforms. Built with Rust, `killport` combines flexibility with performance in process management tasks.
 
 ## Features
 
-- Kill processes by port number
-- Kill docker container by port number
-- Supports multiple port numbers
-- Verbosity control
-- Works on Linux, macOS and Windows
-- Serveral signal types (SIGTERM, SIGKILL)
+- Terminate processes or containers on specified ports with support for single or multiple ports.
+- Mode of operation options to target either processes, containers, or both.
+- Dry-run capability for safe operations without actual termination.
+- Adjustable verbosity for detailed logging and quiet operation for minimal output.
+- Comprehensive signal support for fine-grained control over the termination signals sent to processes or containers.
+- Cross-platform compatibility: Linux, macOS, and Windows.
 
 ## Installation
 
@@ -56,77 +56,74 @@ You can download the binary releases for different architectures from the [relea
 ## Usage
 
 ```sh
-killport [FLAGS] <ports>...
+killport [OPTIONS] <ports>...
 ```
+
+### Flags
+
+- `-m, --mode <MODE>`: Select mode of operation (process, container, or both).
+- `-s, --signal <SIG>`: Specify the signal to send (default: SIGKILL).
+- `-v, --verbose`: Increase verbosity level (use multiple times for more detail).
+- `-q, --quiet`: Decrease verbosity level (use multiple times for less detail).
+- `--dry-run`: Preview which processes or containers would be terminated.
+- `-h, --help`: Display help message.
+- `-V, --version`: Display version information.
 
 ### Examples
 
-Kill a single process listening on port 8080:
+Kill a single process on port 8080:
 
 ```sh
 killport 8080
 ```
 
-Kill multiple processes listening on ports 8045, 8046, and 8080:
+Kill processes on multiple ports with a specific signal:
 
 ```sh
-killport 8045 8046 8080
+killport -s sigterm 8045 8046 8080
 ```
 
-Kill processes with specified signal:
+Perform a dry run to check what would be killed on port 8080:
 
 ```sh
-killport -s sigkill 8080
+killport --dry-run 8080
 ```
 
 Supported Signals:
-- sighup
-- sigint
-- sigquit
-- sigill
-- sigtrap
-- sigabrt
-- sigbus
-- sigfpe
-- sigkill
-- sigusr1
-- sigsegv
-- sigusr2
-- sigpipe
-- sigalrm
-- sigterm
-- sigstkflt
-- sigchld
-- sigcont
-- sigstop
-- sigtstp
-- sigttin
-- sigttou
-- sigurg
-- sigxcpu
-- sigxfsz
-- sigvtalrm
-- sigprof
-- sigwinch
-- sigio
-- sigpwr
-- sigsys
-- sigemt
-- siginfo
 
-### Flags
+1. **Softest/Lower Preference Signals (Generally ignorable or default to terminate the process gently):**
+   - `SIGUSR1` - User-defined signal 1
+   - `SIGUSR2` - User-defined signal 2
+   - `SIGWINCH` - Window size change
+   - `SIGURG` - Urgent condition on socket
+   - `SIGCONT` - Continue if stopped
+   - `SIGCHLD` - Child status has changed
+   - `SIGIO` - I/O now possible
+   - `SIGALRM` - Timer signal
+   - `SIGVTALRM` - Virtual timer expired
+   - `SIGPROF` - Profiling timer expired
+   - `SIGPWR` - Power failure
+   - `SIGSYS` - Bad argument to routine
+   - `SIGPIPE` - Broken pipe: write to pipe with no readers
+   - `SIGTERM` - Termination signal
+   - `SIGHUP` - Hangup detected on controlling terminal or death of controlling process
+   - `SIGINT` - This signal is sent to a process by its controlling terminal when a user wishes to interrupt the process.
 
--s, --signal
-    Specify a signal name to be sent. (e.g. sigkill)
+2. **Higher Preference/More Disruptive Signals (Generally not ignorable and often default to terminate the process abruptly):**
+   - `SIGQUIT` - Quit from keyboard and dump core
+   - `SIGABRT` - Abort signal from abort()
+   - `SIGTSTP` - Stop typed at terminal
+   - `SIGTTIN` - Terminal input for background process
+   - `SIGTTOU` - Terminal output for background process
+   - `SIGSTOP` - Stop process
+   - `SIGSEGV` - Invalid memory reference
+   - `SIGBUS` - Bus error (bad memory access)
+   - `SIGFPE` - Floating-point exception
+   - `SIGILL` - Illegal Instruction
+   - `SIGTRAP` - Trace/breakpoint trap
 
--v, --verbose
-    Increase the verbosity level. Use multiple times for more detailed output.
-
--h, --help
-    Display the help message and exit.
-
--V, --version
-    Display the version information and exit.
+3. **Most Severe/Definitive Signals (Cannot be caught or ignored):**
+   - `SIGKILL` - Kill signal
 
 ## Contributing
 
