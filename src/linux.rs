@@ -1,4 +1,9 @@
+use crate::killport::NativeProcess;
+
+use log::debug;
+use nix::unistd::Pid;
 use procfs::process::FDTarget;
+use std::io::Error;
 
 /// Finds the inodes associated with the specified `port`.
 ///
@@ -70,7 +75,7 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 /// # Arguments
 ///
 /// * `inodes` - Target inodes
-fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
+pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
     let mut target_pids: Vec<NativeProcess> = vec![];
     let inodes = find_target_inodes(port);
 
@@ -86,9 +91,14 @@ fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
 
                     if let FDTarget::Socket(sock_inode) = fd.target {
                         if inode == sock_inode {
-                            debug!("Found process with PID {}", process.pid);
+                            let name = process
+                                .cmdline()
+                                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                                .join(" ");
+                            debug!("Found process '{}' with PID {}", name, process.pid());
                             target_pids.push(NativeProcess {
                                 pid: Pid::from_raw(process.pid),
+                                name: name,
                             });
                         }
                     }
