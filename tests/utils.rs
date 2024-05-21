@@ -34,7 +34,7 @@ pub fn start_listener_process(tempdir_path: &Path, port: u16) -> Child {
         .expect("Failed to write mock process code");
 
     let status = SystemCommand::new("rustc")
-        .args(&[
+        .args([
             mock_process_path.to_str().unwrap(),
             "--out-dir",
             tempdir_path.to_str().unwrap(),

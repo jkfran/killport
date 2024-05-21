@@ -1,4 +1,4 @@
-use crate::killport::NativeProcess;
+use crate::unix::UnixProcess;
 
 use log::debug;
 use nix::unistd::Pid;
@@ -75,8 +75,8 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 /// # Arguments
 ///
 /// * `inodes` - Target inodes
-pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
-    let mut target_pids: Vec<NativeProcess> = vec![];
+pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, Error> {
+    let mut target_pids: Vec<UnixProcess> = vec![];
     let inodes = find_target_inodes(port);
 
     for inode in inodes {
@@ -96,10 +96,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
                                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
                                 .join(" ");
                             debug!("Found process '{}' with PID {}", name, process.pid());
-                            target_pids.push(NativeProcess {
-                                pid: Pid::from_raw(process.pid),
-                                name: name,
-                            });
+                            target_pids.push(UnixProcess::new(Pid::from_raw(process.pid), name));
                         }
                     }
                 }

@@ -52,7 +52,7 @@ fn main() {
 
     // Attempt to kill processes listening on specified ports
     for port in args.ports {
-        match killport.kill_service_by_port(port, args.signal, args.mode, args.dry_run) {
+        match killport.kill_service_by_port(port, args.signal.clone(), args.mode, args.dry_run) {
             Ok(killed_services) => {
                 if killed_services.is_empty() {
                     println!("No {} found using port {}", service_type_singular, port);

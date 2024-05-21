@@ -1,7 +1,7 @@
+use crate::signal::KillportSignal;
 use bollard::container::{KillContainerOptions, ListContainersOptions};
 use bollard::Docker;
 use log::debug;
-use nix::sys::signal::Signal;
 use std::collections::HashMap;
 use std::io::Error;
 use tokio::runtime::Runtime;
@@ -17,7 +17,7 @@ impl DockerContainer {
     ///
     /// * `name` - A container name.
     /// * `signal` - A enum value representing the signal type.
-    pub fn kill_container(name: &String, signal: Signal) -> Result<(), Error> {
+    pub fn kill_container(name: &str, signal: KillportSignal) -> Result<(), Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
             let docker = Docker::connect_with_socket_defaults()
@@ -63,11 +63,7 @@ impl DockerContainer {
                         .as_ref()?
                         .first()
                         .map(|name| DockerContainer {
-                            name: if name.starts_with('/') {
-                                name[1..].to_string()
-                            } else {
-                                name.clone()
-                            },
+                            name: name.strip_prefix('/').unwrap_or(name).to_string(),
                         })
                 })
                 .collect())

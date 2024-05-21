@@ -1,4 +1,4 @@
-use crate::KillPortSignalOptions;
+use crate::killport::{Killable, KillableType};
 use log::info;
 use std::{
     alloc::{alloc, dealloc, Layout},
@@ -29,24 +29,24 @@ use windows_sys::Win32::{
     },
 };
 
-/// Attempts to kill processes listening on the specified `port`.
+/// Represents a windows native process
+#[derive(Debug)]
+pub struct WindowsProcess {
+    pid: u32,
+    name: Option<String>,
+}
+
+/// Finds the processes associated with the specified `port`.
+///
+/// Returns a `Vec` of native processes.
 ///
 /// # Arguments
 ///
-/// * `port` - A u16 value representing the port number.
-///
-/// # Returns
-///
-/// A `Result` containing a tuple. The first element is a boolean indicating if
-/// at least one process was killed (true if yes, false otherwise). The second
-/// element is a string indicating the type of the killed entity. An `Error` is
-/// returned if the operation failed or the platform is unsupported.
-pub fn kill_processes_by_port(
-    port: u16,
-    _: KillPortSignalOptions,
-) -> Result<(bool, String), Error> {
+/// * `port` - Target port number
+pub fn find_target_processes(port: u16) -> Result<Vec<WindowsProcess>> {
     let mut pids: HashSet<u32> = HashSet::new();
-    unsafe {
+
+    let processes = unsafe {
         // Find processes in the TCP IPv4 table
         use_extended_table::<MIB_TCPTABLE_OWNER_MODULE>(port, &mut pids)?;
 
@@ -59,21 +59,109 @@ pub fn kill_processes_by_port(
         // Find processes in the UDP IPv6 table
         use_extended_table::<MIB_UDP6TABLE_OWNER_MODULE>(port, &mut pids)?;
 
-        // Nothing was found
-        if pids.is_empty() {
-            return Ok((false, "None".to_string()));
-        }
-
         // Collect parents of the PIDs
         collect_parents(&mut pids)?;
 
-        for pid in pids {
-            kill_process(pid)?;
+        // Collect the processes
+        let mut processes: Vec<WindowsProcess> = pids
+            .into_iter()
+            .map(|pid| WindowsProcess { pid, name: None })
+            .collect();
+
+        lookup_proccess_names(&mut processes)?;
+
+        processes
+    };
+
+    Ok(processes)
+}
+
+impl Killable for WindowsProcess {
+    fn kill(&self, _signal: crate::signal::KillportSignal) -> Result<bool> {
+        let mut pids: HashSet<u32> = HashSet::new();
+        pids.insert(self.pid);
+
+        if pids.is_empty() {
+            return Ok(false);
         }
 
-        // Something had to have been killed to reach here
-        Ok((true, "process".to_string()))
+        unsafe {
+            collect_parents(&mut pids)?;
+
+            for pid in pids {
+                kill_process(pid)?;
+            }
+        };
+
+        Ok(true)
     }
+
+    fn get_type(&self) -> KillableType {
+        KillableType::Process
+    }
+
+    fn get_name(&self) -> String {
+        match self.name.as_ref() {
+            Some(value) => value.to_string(),
+            None => "Unknown".to_string(),
+        }
+    }
+}
+
+/// Collects the names for the processes in the provided collection of
+/// processes. If name resolving fails that process is just "Unknown"
+///
+/// # Arguments
+///
+/// * `processes` - The set of processes to resolve the names of
+unsafe fn lookup_proccess_names(processes: &mut [WindowsProcess]) -> Result<()> {
+    // Request a snapshot handle
+    let handle: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+    // Ensure we got a valid handle
+    if handle == INVALID_HANDLE_VALUE {
+        let error: WIN32_ERROR = GetLastError();
+        return Err(Error::new(
+            ErrorKind::Other,
+            format!("Failed to get handle to processes: {:#x}", error),
+        ));
+    }
+
+    // Allocate the memory to use for the entries
+    let mut entry: PROCESSENTRY32 = std::mem::zeroed();
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+
+    // Process the first item
+    if Process32First(handle, &mut entry) != FALSE {
+        loop {
+            let target_process = processes
+                .iter_mut()
+                .find(|proc| proc.pid == entry.th32ProcessID);
+            if let Some(target_process) = target_process {
+                let name_chars = entry
+                    .szExeFile
+                    .iter()
+                    .copied()
+                    .take_while(|value| *value != 0)
+                    .collect();
+
+                let name = String::from_utf8(name_chars);
+                if let Ok(name) = name {
+                    target_process.name = Some(name)
+                }
+            }
+
+            // Process the next entry
+            if Process32Next(handle, &mut entry) == FALSE {
+                break;
+            }
+        }
+    }
+
+    // Close the handle now that its no longer needed
+    CloseHandle(handle);
+
+    Ok(())
 }
 
 /// Collects all the parent processes for the PIDs in
