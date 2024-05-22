@@ -36,6 +36,12 @@ pub struct WindowsProcess {
     name: Option<String>,
 }
 
+impl WindowsProcess {
+    pub fn new(pid: u32, name: Option<String>) -> Self {
+        Self { pid, name }
+    }
+}
+
 /// Finds the processes associated with the specified `port`.
 ///
 /// Returns a `Vec` of native processes.
@@ -65,7 +71,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<WindowsProcess>> {
         // Collect the processes
         let mut processes: Vec<WindowsProcess> = pids
             .into_iter()
-            .map(|pid| WindowsProcess { pid, name: None })
+            .map(|pid| WindowsProcess::new(pid, None))
             .collect();
 
         lookup_proccess_names(&mut processes)?;

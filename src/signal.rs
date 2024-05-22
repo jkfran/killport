@@ -8,7 +8,7 @@ pub struct KillportSignal(pub nix::sys::signal::Signal);
 
 /// On a platform where we don't have the proper signals enum
 #[cfg(not(unix))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KillportSignal(pub String);
 
 impl Display for KillportSignal {
