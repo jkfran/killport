@@ -48,7 +48,7 @@ fn test_signal_handling() {
             .assert()
             .success()
             .stdout(format!(
-                "Successfully killed process 'mock_process' listening on port 8081\n"
+                "Successfully killed process '{MOCK_PROCESS_NAME}' listening on port 8081\n"
             ));
 
         // Clean up
