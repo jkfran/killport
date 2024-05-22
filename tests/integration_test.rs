@@ -4,6 +4,11 @@ use utils::start_listener_process;
 use assert_cmd::Command;
 use tempfile::tempdir;
 
+#[cfg(unix)]
+const MOCK_PROCESS_NAME: &str = "mock_process";
+#[cfg(windows)]
+const MOCK_PROCESS_NAME: &str = "mock_process.exe";
+
 #[test]
 fn test_basic_kill_no_process() {
     let mut cmd = Command::cargo_bin("killport").unwrap();
@@ -21,10 +26,9 @@ fn test_basic_kill_process() {
     let mut child = start_listener_process(tempdir_path, 8080);
 
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    cmd.args(&["8080"])
-        .assert()
-        .success()
-        .stdout("Successfully killed process 'mock_process' listening on port 8080\n");
+    cmd.args(&["8080"]).assert().success().stdout(format!(
+        "Successfully killed process '{MOCK_PROCESS_NAME}' listening on port 8080\n"
+    ));
 
     // Clean up
     let _ = child.kill();
@@ -66,7 +70,7 @@ fn test_mode_option() {
             .assert()
             .success()
             .stdout(format!(
-                "Successfully killed process 'mock_process' listening on port 8082\n"
+                "Successfully killed process '{MOCK_PROCESS_NAME}' listening on port 8082\n"
             ));
         // Clean up
         let _ = child.kill();
@@ -103,7 +107,9 @@ fn test_dry_run_option() {
     cmd.args(&["8083", "--dry-run"])
         .assert()
         .success()
-        .stdout("Would kill process 'mock_process' listening on port 8083\n");
+        .stdout(format!(
+            "Would kill process '{MOCK_PROCESS_NAME}' listening on port 8083\n"
+        ));
 
     // Clean up
     let _ = child.kill();
