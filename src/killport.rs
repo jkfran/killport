@@ -11,7 +11,9 @@ use std::{fmt::Display, io::Error};
 /// Interface for killable targets such as native process and docker container.
 pub trait Killable {
     fn kill(&self, signal: KillportSignal) -> Result<bool, Error>;
+
     fn get_type(&self) -> KillableType;
+
     fn get_name(&self) -> String;
 }
 
@@ -102,6 +104,7 @@ impl KillportOperations for Killport {
                 if docker_present && process.get_name().to_lowercase().contains("docker") {
                     continue;
                 }
+
                 target_killables.push(Box::new(process));
             }
         }

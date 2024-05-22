@@ -126,7 +126,7 @@ fn kill_service_by_port_dry_run() {
 
 #[test]
 fn check_process_type_and_name() {
-    let process = WindowsProcess::new(1234, Some("unique_process".to_string()));
+    let process = WindowsProcess::new(1234, "unique_process".to_string());
 
     assert_eq!(process.get_type(), KillableType::Process);
     assert_eq!(process.get_name(), "unique_process");
