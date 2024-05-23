@@ -162,7 +162,10 @@ impl ProcessLookupTable {
 /// WARNING - This worked in the previous versions because the implementation
 /// was flawwed and didn't properly look up the tree of parents, trying to kill
 /// all of the parents causes problems since you'll end up killing explorer.exe
-/// or some other windows sys process. So I've limited the depth to a single process deep
+/// or some other windows sys process. This has been disabled (Depth of 0) but
+/// may be enabled in a future release
+///
+///
 ///
 /// # Arguments
 ///
@@ -171,7 +174,7 @@ fn lookup_process_parents(
     lookup_table: &ProcessLookupTable,
     process: &mut WindowsProcess,
 ) -> Result<()> {
-    const MAX_PARENT_DEPTH: u8 = 1;
+    const MAX_PARENT_DEPTH: u8 = 0;
 
     let mut current_procces = process;
     let mut depth = 0;
