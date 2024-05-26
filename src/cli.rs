@@ -87,7 +87,7 @@ fn parse_signal(arg: &str) -> Result<Signal, std::io::Error> {
         Ok(str_arg) => {
             let signal_str = str_arg.to_uppercase();
             let signal = Signal::from_str(signal_str.as_str())?;
-            return Ok(signal);
+            Ok(signal)
         }
         Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
     }

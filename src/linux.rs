@@ -98,7 +98,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, Error> {
                             debug!("Found process '{}' with PID {}", name, process.pid());
                             target_pids.push(NativeProcess {
                                 pid: Pid::from_raw(process.pid),
-                                name: name,
+                                name,
                             });
                         }
                     }

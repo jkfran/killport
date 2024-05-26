@@ -69,10 +69,7 @@ impl Killable for DockerContainer {
     ///
     /// * `signal` - A enum value representing the signal type.
     fn kill(&self, signal: Signal) -> Result<bool, Error> {
-        if let Err(err) = Self::kill_container(&self.name, signal) {
-            return Err(err);
-        }
-
+        Self::kill_container(&self.name, signal)?;
         Ok(true)
     }
 

@@ -17,7 +17,7 @@ impl DockerContainer {
     ///
     /// * `name` - A container name.
     /// * `signal` - A enum value representing the signal type.
-    pub fn kill_container(name: &String, signal: Signal) -> Result<(), Error> {
+    pub fn kill_container(name: &str, signal: Signal) -> Result<(), Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
             let docker = Docker::connect_with_socket_defaults()
@@ -63,8 +63,8 @@ impl DockerContainer {
                         .as_ref()?
                         .first()
                         .map(|name| DockerContainer {
-                            name: if name.starts_with('/') {
-                                name[1..].to_string()
+                            name: if let Some(stripped) = name.strip_prefix('/') {
+                                stripped.to_string()
                             } else {
                                 name.clone()
                             },
