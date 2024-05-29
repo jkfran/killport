@@ -1,4 +1,4 @@
-use crate::killport::NativeProcess;
+use crate::unix::UnixProcess;
 
 use libproc::libproc::file_info::pidfdinfo;
 use libproc::libproc::file_info::{ListFDs, ProcFDType};
@@ -16,8 +16,8 @@ use std::io;
 /// # Arguments
 ///
 /// * `port` - Target port number
-pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, io::Error> {
-    let mut target_pids: Vec<NativeProcess> = vec![];
+pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
+    let mut target_pids: Vec<UnixProcess> = vec![];
 
     if let Ok(procs) = pids_by_type(ProcFilter::All) {
         for p in procs {
@@ -56,10 +56,10 @@ pub fn find_target_processes(port: u16) -> Result<Vec<NativeProcess>, io::Error>
                                                 "Found process '{}' with PID {} listening on port {}",
                                                 process_name, pid, port
                                             );
-                                            target_pids.push(NativeProcess {
-                                                pid: Pid::from_raw(pid),
-                                                name: process_name,
-                                            });
+                                            target_pids.push(UnixProcess::new(
+                                                Pid::from_raw(pid),
+                                                process_name,
+                                            ));
                                         }
                                     }
                                     _ => (),

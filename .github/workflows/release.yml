@@ -64,7 +64,7 @@ jobs:
           - s390x-unknown-linux-gnu
           - aarch64-apple-darwin
           - x86_64-apple-darwin
-          # - x86_64-pc-windows-gnu
+          - x86_64-pc-windows-gnu
     runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - name: Checkout repository

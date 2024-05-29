@@ -1,8 +1,8 @@
-use crate::KillPortSignalOptions;
+use crate::killport::{Killable, KillableType};
 use log::info;
 use std::{
     alloc::{alloc, dealloc, Layout},
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::c_void,
     io::{Error, ErrorKind, Result},
     ptr::addr_of,
@@ -29,24 +29,36 @@ use windows_sys::Win32::{
     },
 };
 
-/// Attempts to kill processes listening on the specified `port`.
+/// Represents a windows native process
+#[derive(Debug)]
+pub struct WindowsProcess {
+    pid: u32,
+    name: String,
+    parent: Option<Box<WindowsProcess>>,
+}
+
+impl WindowsProcess {
+    pub fn new(pid: u32, name: String) -> Self {
+        Self {
+            pid,
+            name,
+            parent: None,
+        }
+    }
+}
+
+/// Finds the processes associated with the specified `port`.
+///
+/// Returns a `Vec` of native processes.
 ///
 /// # Arguments
 ///
-/// * `port` - A u16 value representing the port number.
-///
-/// # Returns
-///
-/// A `Result` containing a tuple. The first element is a boolean indicating if
-/// at least one process was killed (true if yes, false otherwise). The second
-/// element is a string indicating the type of the killed entity. An `Error` is
-/// returned if the operation failed or the platform is unsupported.
-pub fn kill_processes_by_port(
-    port: u16,
-    _: KillPortSignalOptions,
-) -> Result<(bool, String), Error> {
+/// * `port` - Target port number
+pub fn find_target_processes(port: u16) -> Result<Vec<WindowsProcess>> {
+    let lookup_table: ProcessLookupTable = ProcessLookupTable::create()?;
     let mut pids: HashSet<u32> = HashSet::new();
-    unsafe {
+
+    let processes = unsafe {
         // Find processes in the TCP IPv4 table
         use_extended_table::<MIB_TCPTABLE_OWNER_MODULE>(port, &mut pids)?;
 
@@ -59,87 +71,269 @@ pub fn kill_processes_by_port(
         // Find processes in the UDP IPv6 table
         use_extended_table::<MIB_UDP6TABLE_OWNER_MODULE>(port, &mut pids)?;
 
-        // Nothing was found
-        if pids.is_empty() {
-            return Ok((false, "None".to_string()));
-        }
-
-        // Collect parents of the PIDs
-        collect_parents(&mut pids)?;
+        let mut processes: Vec<WindowsProcess> = Vec::with_capacity(pids.len());
 
         for pid in pids {
-            kill_process(pid)?;
+            let process_name = lookup_table
+                .process_names
+                .get(&pid)
+                .cloned()
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            let mut process = WindowsProcess::new(pid, process_name);
+
+            // Resolve the process parents
+            lookup_process_parents(&lookup_table, &mut process)?;
+
+            processes.push(process);
         }
 
-        // Something had to have been killed to reach here
-        Ok((true, "process".to_string()))
+        processes
+    };
+
+    Ok(processes)
+}
+
+impl Killable for WindowsProcess {
+    fn kill(&self, _signal: crate::signal::KillportSignal) -> Result<bool> {
+        let mut killed = false;
+        let mut next = Some(self);
+        while let Some(current) = next {
+            unsafe {
+                kill_process(current)?;
+            }
+
+            killed = true;
+            next = current.parent.as_ref().map(|value| value.as_ref());
+        }
+
+        Ok(killed)
+    }
+
+    fn get_type(&self) -> KillableType {
+        KillableType::Process
+    }
+
+    fn get_name(&self) -> String {
+        self.name.to_string()
     }
 }
 
-/// Collects all the parent processes for the PIDs in
-/// the provided set
+/// Checks if there is a running process with the provided pid
 ///
 /// # Arguments
 ///
-/// * `pids` - The set to match PIDs from and insert PIDs into
-unsafe fn collect_parents(pids: &mut HashSet<u32>) -> Result<()> {
-    // Request a snapshot handle
-    let handle: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+/// * `pid` - The process ID to search for
+fn is_process_running(pid: u32) -> Result<bool> {
+    let mut snapshot = WindowsProcessesSnapshot::create()?;
+    let is_running = snapshot.any(|entry| entry.th32ProcessID == pid);
+    Ok(is_running)
+}
 
-    // Ensure we got a valid handle
-    if handle == INVALID_HANDLE_VALUE {
-        let error: WIN32_ERROR = GetLastError();
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!("Failed to get handle to processes: {:#x}", error),
-        ));
+/// Lookup table for finding the names and parents for
+/// a process using its pid
+pub struct ProcessLookupTable {
+    /// Mapping from pid to name
+    process_names: HashMap<u32, String>,
+    /// Mapping from pid to parent pid
+    process_parents: HashMap<u32, u32>,
+}
+
+impl ProcessLookupTable {
+    pub fn create() -> Result<Self> {
+        let mut process_names: HashMap<u32, String> = HashMap::new();
+        let mut process_parents: HashMap<u32, u32> = HashMap::new();
+
+        WindowsProcessesSnapshot::create()?.for_each(|entry| {
+            process_names.insert(entry.th32ProcessID, get_process_entry_name(&entry));
+            process_parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+        });
+
+        Ok(Self {
+            process_names,
+            process_parents,
+        })
     }
+}
 
-    // Allocate the memory to use for the entries
-    let mut entry: PROCESSENTRY32 = std::mem::zeroed();
-    entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+/// Finds any parent processes of the provided process, adding
+/// the process to the list of parents
+///
+/// WARNING - This worked in the previous versions because the implementation
+/// was flawwed and didn't properly look up the tree of parents, trying to kill
+/// all of the parents causes problems since you'll end up killing explorer.exe
+/// or some other windows sys process. This has been disabled (Depth of 0) but
+/// may be enabled in a future release
+///
+///
+///
+/// # Arguments
+///
+/// * `process` - The process to collect parents for
+fn lookup_process_parents(
+    lookup_table: &ProcessLookupTable,
+    process: &mut WindowsProcess,
+) -> Result<()> {
+    const MAX_PARENT_DEPTH: u8 = 0;
 
-    // Process the first item
-    if Process32First(handle, &mut entry) != FALSE {
-        let mut count = 0;
+    let mut current_procces = process;
+    let mut depth = 0;
 
-        loop {
-            // Add matching processes to the output
-            if pids.contains(&entry.th32ProcessID) {
-                pids.insert(entry.th32ParentProcessID);
-                count += 1;
-            }
-
-            // Process the next entry
-            if Process32Next(handle, &mut entry) == FALSE {
-                break;
-            }
+    while let Some(&parent_pid) = lookup_table.process_parents.get(&current_procces.pid) {
+        if depth == MAX_PARENT_DEPTH {
+            break;
         }
 
-        info!("Collected {} parent processes", count);
+        let process_name = lookup_table
+            .process_names
+            .get(&parent_pid)
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        // Add the new parent process
+        let parent = current_procces
+            .parent
+            .insert(Box::new(WindowsProcess::new(parent_pid, process_name)));
+
+        current_procces = parent;
+        depth += 1
     }
 
-    // Close the handle now that its no longer needed
-    CloseHandle(handle);
-
     Ok(())
+}
+
+/// Parses the name from a process entry, falls back to "Unknown"
+/// for invalid names
+///
+/// # Arguments
+///
+/// * `entry` - The process entry
+fn get_process_entry_name(entry: &PROCESSENTRY32) -> String {
+    let name_chars = entry
+        .szExeFile
+        .iter()
+        .copied()
+        .take_while(|value| *value != 0)
+        .collect();
+
+    let name = String::from_utf8(name_chars);
+    name.unwrap_or_else(|_| "Unknown".to_string())
+}
+
+/// Snapshot of the running windows processes that can be iterated to find
+/// information about various processes such as parent processes and
+/// process names
+///
+/// This is a safe abstraction
+pub struct WindowsProcessesSnapshot {
+    /// Handle to the snapshot
+    handle: HANDLE,
+    /// The memory for reading process entries
+    entry: PROCESSENTRY32,
+    /// State of reading
+    state: SnapshotState,
+}
+
+/// State for the snapshot iterator
+pub enum SnapshotState {
+    /// Can read the first entry
+    First,
+    /// Can read the next entry
+    Next,
+    /// Reached the end, cannot iterate further always give [None]
+    End,
+}
+
+impl WindowsProcessesSnapshot {
+    /// Creates a new process snapshot to iterate
+    pub fn create() -> Result<Self> {
+        // Request a snapshot handle
+        let handle: HANDLE = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+
+        // Ensure we got a valid handle
+        if handle == INVALID_HANDLE_VALUE {
+            let error: WIN32_ERROR = unsafe { GetLastError() };
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Failed to get handle to processes: {:#x}", error),
+            ));
+        }
+
+        // Allocate the memory to use for the entries
+        let mut entry: PROCESSENTRY32 = unsafe { std::mem::zeroed() };
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+
+        Ok(Self {
+            handle,
+            entry,
+            state: SnapshotState::First,
+        })
+    }
+}
+
+impl Iterator for WindowsProcessesSnapshot {
+    type Item = PROCESSENTRY32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.state {
+            SnapshotState::First => {
+                // Process the first entry
+                if unsafe { Process32First(self.handle, &mut self.entry) } == FALSE {
+                    self.state = SnapshotState::End;
+                    return None;
+                }
+                self.state = SnapshotState::Next;
+
+                Some(self.entry)
+            }
+            SnapshotState::Next => {
+                // Process the next entry
+                if unsafe { Process32Next(self.handle, &mut self.entry) } == FALSE {
+                    self.state = SnapshotState::End;
+                    return None;
+                }
+
+                Some(self.entry)
+            }
+            SnapshotState::End => None,
+        }
+    }
+}
+
+impl Drop for WindowsProcessesSnapshot {
+    fn drop(&mut self) {
+        unsafe {
+            // Close the handle now that its no longer needed
+            CloseHandle(self.handle);
+        }
+    }
 }
 
 /// Kills a process with the provided process ID
 ///
 /// # Arguments
 ///
-/// * `pid` - The process ID
-unsafe fn kill_process(pid: u32) -> Result<()> {
-    info!("Killing process with PID {}", pid);
+/// * `process` - The process
+unsafe fn kill_process(process: &WindowsProcess) -> Result<()> {
+    info!("Killing process {}:{}", process.get_name(), process.pid);
 
     // Open the process handle with intent to terminate
-    let handle: HANDLE = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+    let handle: HANDLE = OpenProcess(PROCESS_TERMINATE, FALSE, process.pid);
     if handle == 0 {
+        // If the process just isn't running we can ignore the error
+        if !is_process_running(process.pid)? {
+            return Ok(());
+        }
+
         let error: WIN32_ERROR = GetLastError();
         return Err(Error::new(
             ErrorKind::Other,
-            format!("Failed to obtain handle to process {}: {:#x}", pid, error),
+            format!(
+                "Failed to obtain handle to process {}:{}: {:#x}",
+                process.get_name(),
+                process.pid,
+                error
+            ),
         ));
     }
 
@@ -153,7 +347,12 @@ unsafe fn kill_process(pid: u32) -> Result<()> {
         let error: WIN32_ERROR = GetLastError();
         return Err(Error::new(
             ErrorKind::Other,
-            format!("Failed to terminate process {}: {:#x}", pid, error),
+            format!(
+                "Failed to terminate process {}:{}: {:#x}",
+                process.get_name(),
+                process.pid,
+                error
+            ),
         ));
     }
 

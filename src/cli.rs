@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use core::fmt;
-use nix::sys::signal::Signal;
-use std::str::FromStr;
+
+use crate::signal::KillportSignal;
 
 /// Modes of operation for killport.
 #[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
@@ -67,7 +67,7 @@ pub struct KillPortArgs {
         default_value = "sigkill",
         value_parser = parse_signal
     )]
-    pub signal: Signal,
+    pub signal: KillportSignal,
 
     /// A verbosity flag to control the level of logging output.
     #[command(flatten)]
@@ -81,14 +81,6 @@ pub struct KillPortArgs {
     pub dry_run: bool,
 }
 
-fn parse_signal(arg: &str) -> Result<Signal, std::io::Error> {
-    let str_arg = arg.parse::<String>();
-    match str_arg {
-        Ok(str_arg) => {
-            let signal_str = str_arg.to_uppercase();
-            let signal = Signal::from_str(signal_str.as_str())?;
-            return Ok(signal);
-        }
-        Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
-    }
+fn parse_signal(arg: &str) -> Result<KillportSignal, std::io::Error> {
+    arg.to_uppercase().parse()
 }

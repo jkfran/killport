@@ -1,64 +1,34 @@
-use crate::cli::Mode;
 use crate::docker::DockerContainer;
 #[cfg(target_os = "linux")]
 use crate::linux::find_target_processes;
 #[cfg(target_os = "macos")]
 use crate::macos::find_target_processes;
-use log::info;
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
-use std::io::Error;
-
-#[derive(Debug)]
-pub struct NativeProcess {
-    /// System native process ID.
-    pub pid: Pid,
-    pub name: String,
-}
+#[cfg(target_os = "windows")]
+use crate::windows::find_target_processes;
+use crate::{cli::Mode, signal::KillportSignal};
+use std::{fmt::Display, io::Error};
 
 /// Interface for killable targets such as native process and docker container.
 pub trait Killable {
-    fn kill(&self, signal: Signal) -> Result<bool, Error>;
-    fn get_type(&self) -> String;
+    fn kill(&self, signal: KillportSignal) -> Result<bool, Error>;
+
+    fn get_type(&self) -> KillableType;
+
     fn get_name(&self) -> String;
 }
 
-impl Killable for NativeProcess {
-    /// Entry point to kill the linux native process.
-    ///
-    /// # Arguments
-    ///
-    /// * `signal` - A enum value representing the signal type.
-    fn kill(&self, signal: Signal) -> Result<bool, Error> {
-        info!("Killing process '{}' with PID {}", self.name, self.pid);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KillableType {
+    Process,
+    Container,
+}
 
-        kill(self.pid, signal).map(|_| true).map_err(|e| {
-            Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Failed to kill process '{}' with PID {}: {}",
-                    self.name, self.pid, e
-                ),
-            )
+impl Display for KillableType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            KillableType::Process => "process",
+            KillableType::Container => "container",
         })
-    }
-
-    /// Returns the type of the killable target.
-    ///
-    /// This method is used to identify the type of the target (either a native process or a Docker container)
-    /// that is being handled. This information can be useful for logging, error handling, or other needs
-    /// where type of the target is relevant.
-    ///
-    /// # Returns
-    ///
-    /// * `String` - A string that describes the type of the killable target. For a `NativeProcess` it will return "process",
-    /// and for a `DockerContainer` it will return "container".
-    fn get_type(&self) -> String {
-        "process".to_string()
-    }
-
-    fn get_name(&self) -> String {
-        self.name.to_string()
     }
 }
 
@@ -68,10 +38,8 @@ impl Killable for DockerContainer {
     /// # Arguments
     ///
     /// * `signal` - A enum value representing the signal type.
-    fn kill(&self, signal: Signal) -> Result<bool, Error> {
-        if let Err(err) = Self::kill_container(&self.name, signal) {
-            return Err(err);
-        }
+    fn kill(&self, signal: KillportSignal) -> Result<bool, Error> {
+        Self::kill_container(&self.name, signal)?;
 
         Ok(true)
     }
@@ -84,10 +52,10 @@ impl Killable for DockerContainer {
     ///
     /// # Returns
     ///
-    /// * `String` - A string that describes the type of the killable target. For a `NativeProcess` it will return "process",
+    /// * `String` - A string that describes the type of the killable target. For a `UnixProcess` it will return "process",
     /// and for a `DockerContainer` it will return "container".
-    fn get_type(&self) -> String {
-        "container".to_string()
+    fn get_type(&self) -> KillableType {
+        KillableType::Container
     }
 
     fn get_name(&self) -> String {
@@ -104,10 +72,10 @@ pub trait KillportOperations {
     fn kill_service_by_port(
         &self,
         port: u16,
-        signal: Signal,
+        signal: KillportSignal,
         mode: Mode,
         dry_run: bool,
-    ) -> Result<Vec<(String, String)>, Error>;
+    ) -> Result<Vec<(KillableType, String)>, Error>;
 }
 
 pub struct Killport;
@@ -133,9 +101,10 @@ impl KillportOperations for Killport {
 
             for process in target_processes {
                 // Check if the process name contains 'docker' and skip if in docker mode
-                if docker_present && process.name.to_lowercase().contains("docker") {
+                if docker_present && process.get_name().to_lowercase().contains("docker") {
                     continue;
                 }
+
                 target_killables.push(Box::new(process));
             }
         }
@@ -166,10 +135,10 @@ impl KillportOperations for Killport {
     fn kill_service_by_port(
         &self,
         port: u16,
-        signal: Signal,
+        signal: KillportSignal,
         mode: Mode,
         dry_run: bool,
-    ) -> Result<Vec<(String, String)>, Error> {
+    ) -> Result<Vec<(KillableType, String)>, Error> {
         let mut results = Vec::new();
         let target_killables = self.find_target_killables(port, mode)?; // Use the existing function to find targets
 
@@ -179,7 +148,7 @@ impl KillportOperations for Killport {
                 results.push((killable.get_type(), killable.get_name()));
             } else {
                 // In actual mode, attempt to kill the entity and collect its information if successful
-                if killable.kill(signal)? {
+                if killable.kill(signal.clone())? {
                     results.push((killable.get_type(), killable.get_name()));
                 }
             }
