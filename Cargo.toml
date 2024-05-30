@@ -40,3 +40,4 @@ features = [
 assert_cmd = "2.0.14"
 tempfile = "3.10.1"
 mockall = "0.12.1"
+regex = "1.10.4"

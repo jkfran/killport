@@ -765,6 +765,7 @@ dependencies = [
  "mockall",
  "nix",
  "procfs",
+ "regex",
  "tempfile",
  "tokio",
  "windows-sys 0.52.0",
