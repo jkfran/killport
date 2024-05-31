@@ -1,8 +1,7 @@
 #![cfg(unix)]
 
 use killport::cli::Mode;
-use killport::docker::DockerContainer;
-use killport::killport::{Killable, KillableType, KillportOperations};
+use killport::killport::{Killable, KillableType};
 use killport::signal::KillportSignal;
 use killport::unix::UnixProcess;
 use mockall::*;
