@@ -18,7 +18,7 @@ clap-verbosity-flag = "2.2.0"
 clap = { version = "4.5.4", features = ["derive"] }
 nix = { version = "0.28.0", features = ["signal"] }
 bollard = "0.16.1"
-tokio = { version = "1.37.0", features = ["rt-multi-thread"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 procfs = "0.16.0"
