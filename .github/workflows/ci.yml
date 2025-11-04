@@ -1,0 +1,23 @@
+name: CI Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Install dependencies
+        run: npm install
+      - name: Run Edge Case Tests
+        run: npm run test -- --coverage --testPathPattern=edge_cases
+      - name: Run End-to-End Tests
+        run: npm run test -- --coverage --testPathPattern=end_to_end
+    
