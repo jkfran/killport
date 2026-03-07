@@ -74,7 +74,24 @@ jobs:
         run: cargo test --doc
 
   # ──────────────────────────────────────────────
-  # Job 4: Code Coverage
+  # Job 4: Docker Integration Tests
+  # ──────────────────────────────────────────────
+  docker-tests:
+    name: Docker Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: docker-tests
+      - name: Pull nginx image
+        run: docker pull nginx:alpine
+      - name: Run Docker integration tests
+        run: cargo test --test docker_integration_test -- --ignored
+
+  # ──────────────────────────────────────────────
+  # Job 5: Code Coverage
   # ──────────────────────────────────────────────
   coverage:
     name: Code Coverage
@@ -96,7 +113,7 @@ jobs:
           fail_ci_if_error: false
 
   # ──────────────────────────────────────────────
-  # Job 5: Security Audit
+  # Job 6: Security Audit
   # ──────────────────────────────────────────────
   audit:
     name: Security Audit
@@ -108,7 +125,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # ──────────────────────────────────────────────
-  # Job 6: Cross-compilation Check
+  # Job 7: Cross-compilation Check
   # ──────────────────────────────────────────────
   cross-build:
     name: Cross Build (${{ matrix.target }})
@@ -156,7 +173,7 @@ jobs:
         if: matrix.runner != 'ubuntu-latest'
 
   # ──────────────────────────────────────────────
-  # Job 7: Documentation
+  # Job 8: Documentation
   # ──────────────────────────────────────────────
   docs:
     name: Documentation
