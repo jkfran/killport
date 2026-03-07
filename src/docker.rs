@@ -15,10 +15,10 @@ impl DockerContainer {
     ///
     /// # Arguments
     ///
+    /// * `rt` - A reference to a Tokio runtime.
     /// * `name` - A container name.
     /// * `signal` - A enum value representing the signal type.
-    pub fn kill_container(name: &str, signal: KillportSignal) -> Result<(), Error> {
-        let rt = Runtime::new()?;
+    pub fn kill_container(rt: &Runtime, name: &str, signal: KillportSignal) -> Result<(), Error> {
         rt.block_on(async {
             let docker =
                 Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
@@ -35,8 +35,7 @@ impl DockerContainer {
     }
 
     /// Finds the Docker containers associated with the specified `port`.
-    pub fn find_target_containers(port: u16) -> Result<Vec<Self>, Error> {
-        let rt = Runtime::new()?;
+    pub fn find_target_containers(rt: &Runtime, port: u16) -> Result<Vec<Self>, Error> {
         rt.block_on(async {
             let docker = match Docker::connect_with_socket_defaults() {
                 Ok(d) => d,
@@ -78,8 +77,7 @@ impl DockerContainer {
         })
     }
 
-    pub fn is_docker_present() -> Result<bool, Error> {
-        let rt = Runtime::new()?;
+    pub fn is_docker_present(rt: &Runtime) -> Result<bool, Error> {
         rt.block_on(async {
             let docker = match Docker::connect_with_socket_defaults() {
                 Ok(d) => d,

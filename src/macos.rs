@@ -78,7 +78,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::killport::Killable;
+    use crate::killable::Killable;
     use std::net::TcpListener;
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
 
         let processes = find_target_processes(port).unwrap();
         for process in &processes {
-            assert_eq!(process.get_type(), crate::killport::KillableType::Process);
+            assert_eq!(process.get_type(), crate::killable::KillableType::Process);
         }
 
         drop(listener);

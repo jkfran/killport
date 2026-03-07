@@ -1,4 +1,4 @@
-use crate::killport::{Killable, KillableType};
+use crate::killable::{Killable, KillableType};
 use log::info;
 use std::{
     alloc::{alloc, dealloc, Layout},
@@ -34,16 +34,11 @@ use windows_sys::Win32::{
 pub struct WindowsProcess {
     pid: u32,
     name: String,
-    parent: Option<Box<WindowsProcess>>,
 }
 
 impl WindowsProcess {
     pub fn new(pid: u32, name: String) -> Self {
-        Self {
-            pid,
-            name,
-            parent: None,
-        }
+        Self { pid, name }
     }
 }
 
@@ -80,12 +75,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<WindowsProcess>> {
                 .cloned()
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            let mut process = WindowsProcess::new(pid, process_name);
-
-            // Resolve the process parents
-            lookup_process_parents(&lookup_table, &mut process)?;
-
-            processes.push(process);
+            processes.push(WindowsProcess::new(pid, process_name));
         }
 
         processes
@@ -96,18 +86,10 @@ pub fn find_target_processes(port: u16) -> Result<Vec<WindowsProcess>> {
 
 impl Killable for WindowsProcess {
     fn kill(&self, _signal: crate::signal::KillportSignal) -> Result<bool> {
-        let mut killed = false;
-        let mut next = Some(self);
-        while let Some(current) = next {
-            unsafe {
-                kill_process(current)?;
-            }
-
-            killed = true;
-            next = current.parent.as_ref().map(|value| value.as_ref());
+        unsafe {
+            kill_process(self)?;
         }
-
-        Ok(killed)
+        Ok(true)
     }
 
     fn get_type(&self) -> KillableType {
@@ -130,76 +112,22 @@ fn is_process_running(pid: u32) -> Result<bool> {
     Ok(is_running)
 }
 
-/// Lookup table for finding the names and parents for
-/// a process using its pid
+/// Lookup table for finding process names by pid
 pub struct ProcessLookupTable {
     /// Mapping from pid to name
     process_names: HashMap<u32, String>,
-    /// Mapping from pid to parent pid
-    process_parents: HashMap<u32, u32>,
 }
 
 impl ProcessLookupTable {
     pub fn create() -> Result<Self> {
         let mut process_names: HashMap<u32, String> = HashMap::new();
-        let mut process_parents: HashMap<u32, u32> = HashMap::new();
 
         WindowsProcessesSnapshot::create()?.for_each(|entry| {
             process_names.insert(entry.th32ProcessID, get_process_entry_name(&entry));
-            process_parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
         });
 
-        Ok(Self {
-            process_names,
-            process_parents,
-        })
+        Ok(Self { process_names })
     }
-}
-
-/// Finds any parent processes of the provided process, adding
-/// the process to the list of parents
-///
-/// WARNING - This worked in the previous versions because the implementation
-/// was flawwed and didn't properly look up the tree of parents, trying to kill
-/// all of the parents causes problems since you'll end up killing explorer.exe
-/// or some other windows sys process. This has been disabled (Depth of 0) but
-/// may be enabled in a future release
-///
-///
-///
-/// # Arguments
-///
-/// * `process` - The process to collect parents for
-fn lookup_process_parents(
-    lookup_table: &ProcessLookupTable,
-    process: &mut WindowsProcess,
-) -> Result<()> {
-    const MAX_PARENT_DEPTH: u8 = 0;
-
-    let mut current_procces = process;
-    let mut depth = 0;
-
-    while let Some(&parent_pid) = lookup_table.process_parents.get(&current_procces.pid) {
-        if depth == MAX_PARENT_DEPTH {
-            break;
-        }
-
-        let process_name = lookup_table
-            .process_names
-            .get(&parent_pid)
-            .cloned()
-            .unwrap_or_else(|| "Unknown".to_string());
-
-        // Add the new parent process
-        let parent = current_procces
-            .parent
-            .insert(Box::new(WindowsProcess::new(parent_pid, process_name)));
-
-        current_procces = parent;
-        depth += 1
-    }
-
-    Ok(())
 }
 
 /// Parses the name from a process entry, falls back to "Unknown"

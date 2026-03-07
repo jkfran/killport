@@ -11,7 +11,7 @@ use std::io::Write;
 use std::process::exit;
 
 use killport::cli::{service_descriptors, KillPortArgs};
-use killport::killport::{Killport, KillportOperations};
+use killport::killport::Killport;
 
 fn main() {
     // Parse command-line arguments
@@ -48,7 +48,10 @@ fn main() {
     let (service_type_singular, _service_type_plural) = service_descriptors(args.mode);
 
     // Create an instance of Killport
-    let killport = Killport;
+    let killport = Killport::with_real_deps().unwrap_or_else(|e| {
+        error!("Failed to initialize: {}", e);
+        exit(1);
+    });
 
     // Attempt to kill processes listening on specified ports
     for port in args.ports {

@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod docker;
+pub mod killable;
 pub mod killport;
 pub mod signal;
 

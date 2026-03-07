@@ -1,4 +1,4 @@
-use crate::killport::{Killable, KillableType};
+use crate::killable::{Killable, KillableType};
 use crate::signal::KillportSignal;
 use log::info;
 use nix::sys::signal::kill;
