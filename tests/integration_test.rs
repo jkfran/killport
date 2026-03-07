@@ -619,3 +619,48 @@ fn test_combined_flags() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+// ─── Verbosity ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_verbose_output_succeeds() {
+    let port = get_available_port();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
+    cmd.args([&port.to_string(), "-vvv"]).assert().success();
+}
+
+#[test]
+fn test_quiet_suppresses_stderr() {
+    let port = get_available_port();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
+    let output = cmd
+        .args([&port.to_string(), "-q"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.is_empty(),
+        "Quiet mode should not produce stderr output, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_very_quiet_suppresses_stderr() {
+    let port = get_available_port();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
+    let output = cmd
+        .args([&port.to_string(), "-qq"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.is_empty(),
+        "Very quiet mode should produce no stderr, got: {}",
+        stderr
+    );
+}

@@ -22,7 +22,7 @@ fn main() {
         .verbose
         .log_level()
         .map(|level| level.to_level_filter())
-        .unwrap();
+        .unwrap_or(LevelFilter::Off);
 
     env_logger::builder()
         .format(move |buf, record| {

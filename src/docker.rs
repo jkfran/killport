@@ -73,8 +73,13 @@ impl DockerContainer {
     pub fn is_docker_present() -> Result<bool, Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
-            let docker =
-                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
+            let docker = match Docker::connect_with_socket_defaults() {
+                Ok(d) => d,
+                Err(e) => {
+                    debug!("Docker socket not available: {}", e);
+                    return Ok(false);
+                }
+            };
 
             // Attempt to get the Docker version as a test of connectivity.
             match docker.version().await {

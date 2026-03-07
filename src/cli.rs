@@ -296,6 +296,45 @@ mod tests {
         assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
     }
 
+    // ─── Verbosity Flags ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_verbosity_default_is_warn() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080"]).unwrap();
+        // Default level (WarnLevel) means log_level() returns Some(Warn)
+        assert_eq!(args.verbose.log_level(), Some(log::Level::Warn));
+    }
+
+    #[test]
+    fn test_verbosity_single_v_is_info() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "-v"]).unwrap();
+        assert_eq!(args.verbose.log_level(), Some(log::Level::Info));
+    }
+
+    #[test]
+    fn test_verbosity_double_v_is_debug() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "-vv"]).unwrap();
+        assert_eq!(args.verbose.log_level(), Some(log::Level::Debug));
+    }
+
+    #[test]
+    fn test_verbosity_triple_v_is_trace() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "-vvv"]).unwrap();
+        assert_eq!(args.verbose.log_level(), Some(log::Level::Trace));
+    }
+
+    #[test]
+    fn test_verbosity_single_q_is_error() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "-q"]).unwrap();
+        assert_eq!(args.verbose.log_level(), Some(log::Level::Error));
+    }
+
+    #[test]
+    fn test_verbosity_double_q_is_off() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "-qq"]).unwrap();
+        assert_eq!(args.verbose.log_level(), None);
+    }
+
     #[test]
     fn test_mode_clone() {
         let mode = Mode::Auto;
