@@ -143,11 +143,13 @@ mod tests {
         assert!(parse_signal("SigInt").is_ok());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_parse_signal_invalid() {
         assert!(parse_signal("NOTASIGNAL").is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_parse_signal_empty() {
         assert!(parse_signal("").is_err());
