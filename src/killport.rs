@@ -193,6 +193,7 @@ impl<P: ProcessFinder, D: DockerOps> KillportWithDeps<P, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use nix::sys::signal::Signal;
     use std::cell::RefCell;
 
@@ -367,7 +368,14 @@ mod tests {
     }
 
     fn signal() -> KillportSignal {
-        KillportSignal(Signal::SIGKILL)
+        #[cfg(unix)]
+        {
+            KillportSignal(Signal::SIGKILL)
+        }
+        #[cfg(not(unix))]
+        {
+            KillportSignal("SIGKILL".to_string())
+        }
     }
 
     // ─── Orchestration Tests: find_target_killables ──────────────────────

@@ -4,7 +4,7 @@ use std::{
     alloc::{alloc, dealloc, Layout},
     collections::{HashMap, HashSet},
     ffi::c_void,
-    io::{Error, ErrorKind, Result},
+    io::{Error, Result},
     ptr::addr_of,
     slice,
 };
@@ -253,10 +253,10 @@ impl WindowsProcessesSnapshot {
         // Ensure we got a valid handle
         if handle == INVALID_HANDLE_VALUE {
             let error: WIN32_ERROR = unsafe { GetLastError() };
-            return Err(Error::new(
-                ErrorKind::Other,
-                format!("Failed to get handle to processes: {:#x}", error),
-            ));
+            return Err(Error::other(format!(
+                "Failed to get handle to processes: {:#x}",
+                error
+            )));
         }
 
         // Allocate the memory to use for the entries
@@ -326,15 +326,12 @@ unsafe fn kill_process(process: &WindowsProcess) -> Result<()> {
         }
 
         let error: WIN32_ERROR = GetLastError();
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!(
-                "Failed to obtain handle to process {}:{}: {:#x}",
-                process.get_name(),
-                process.pid,
-                error
-            ),
-        ));
+        return Err(Error::other(format!(
+            "Failed to obtain handle to process {}:{}: {:#x}",
+            process.get_name(),
+            process.pid,
+            error
+        )));
     }
 
     // Terminate the process
@@ -345,15 +342,12 @@ unsafe fn kill_process(process: &WindowsProcess) -> Result<()> {
 
     if result == FALSE {
         let error: WIN32_ERROR = GetLastError();
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!(
-                "Failed to terminate process {}:{}: {:#x}",
-                process.get_name(),
-                process.pid,
-                error
-            ),
-        ));
+        return Err(Error::other(format!(
+            "Failed to terminate process {}:{}: {:#x}",
+            process.get_name(),
+            process.pid,
+            error
+        )));
     }
 
     Ok(())
@@ -412,13 +406,10 @@ where
         }
 
         // Handle unknown failures
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!(
-                "Failed to get size estimate for extended table: {:#x}",
-                result
-            ),
-        ));
+        return Err(Error::other(format!(
+            "Failed to get size estimate for extended table: {:#x}",
+            result
+        )));
     }
 
     let table: *const T = buffer.cast();

@@ -36,11 +36,9 @@ impl FromStr for KillportSignal {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(unix)]
     mod unix_tests {
-        use super::*;
+        use super::super::*;
         use nix::sys::signal::Signal;
 
         #[test]
