@@ -69,6 +69,7 @@ fn test_cli_invalid_mode() {
     cmd.args(["8080", "--mode", "foobar"]).assert().failure();
 }
 
+#[cfg(unix)]
 #[test]
 fn test_cli_invalid_signal() {
     let mut cmd = Command::cargo_bin("killport").unwrap();
