@@ -1,6 +1,8 @@
 mod utils;
 use regex::bytes::Regex;
 use utils::{get_available_port, is_process_alive, start_tcp_listener};
+#[cfg(target_os = "linux")]
+use utils::start_udp_listener;
 
 use assert_cmd::Command;
 use tempfile::tempdir;
