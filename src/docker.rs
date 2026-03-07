@@ -38,8 +38,13 @@ impl DockerContainer {
     pub fn find_target_containers(port: u16) -> Result<Vec<Self>, Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
-            let docker =
-                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
+            let docker = match Docker::connect_with_socket_defaults() {
+                Ok(d) => d,
+                Err(e) => {
+                    debug!("Docker socket not available for container lookup: {}", e);
+                    return Ok(vec![]);
+                }
+            };
 
             let mut filters = HashMap::new();
             filters.insert("publish".to_string(), vec![port.to_string()]);
@@ -50,10 +55,13 @@ impl DockerContainer {
                 ..Default::default()
             };
 
-            let containers = docker
-                .list_containers(Some(options))
-                .await
-                .map_err(|e| Error::other(e.to_string()))?;
+            let containers = match docker.list_containers(Some(options)).await {
+                Ok(c) => c,
+                Err(e) => {
+                    debug!("Failed to list Docker containers: {}", e);
+                    return Ok(vec![]);
+                }
+            };
 
             Ok(containers
                 .iter()
