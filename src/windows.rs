@@ -10,8 +10,8 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        CloseHandle, GetLastError, BOOL, ERROR_INSUFFICIENT_BUFFER, FALSE, HANDLE,
-        INVALID_HANDLE_VALUE, NO_ERROR, WIN32_ERROR,
+        CloseHandle, GetLastError, ERROR_INSUFFICIENT_BUFFER, FALSE, HANDLE, INVALID_HANDLE_VALUE,
+        NO_ERROR, WIN32_ERROR,
     },
     NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_MODULE,
@@ -209,11 +209,12 @@ fn lookup_process_parents(
 ///
 /// * `entry` - The process entry
 fn get_process_entry_name(entry: &PROCESSENTRY32) -> String {
-    let name_chars = entry
+    let name_chars: Vec<u8> = entry
         .szExeFile
         .iter()
         .copied()
         .take_while(|value| *value != 0)
+        .map(|c| c as u8)
         .collect();
 
     let name = String::from_utf8(name_chars);
@@ -319,7 +320,7 @@ unsafe fn kill_process(process: &WindowsProcess) -> Result<()> {
 
     // Open the process handle with intent to terminate
     let handle: HANDLE = OpenProcess(PROCESS_TERMINATE, FALSE, process.pid);
-    if handle == 0 {
+    if handle.is_null() {
         // If the process just isn't running we can ignore the error
         if !is_process_running(process.pid)? {
             return Ok(());
@@ -335,7 +336,7 @@ unsafe fn kill_process(process: &WindowsProcess) -> Result<()> {
     }
 
     // Terminate the process
-    let result: BOOL = TerminateProcess(handle, 0);
+    let result = TerminateProcess(handle, 0);
 
     // Close the handle now that its no longer needed
     CloseHandle(handle);
