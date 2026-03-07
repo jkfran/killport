@@ -28,7 +28,8 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
                     if let ProcFDType::Socket = fd.proc_fdtype.into() {
                         if let Ok(socket) = pidfdinfo::<SocketFDInfo>(pid, fd.proc_fd) {
                             // Correctly cast soi_kind to SocketInfoKind
-                            if let Ok(socket_kind) = SocketInfoKind::try_from(socket.psi.soi_kind) {
+                            let socket_kind = SocketInfoKind::from(socket.psi.soi_kind);
+                            {
                                 match socket_kind {
                                     SocketInfoKind::In | SocketInfoKind::Tcp => {
                                         let local_port = unsafe {
@@ -49,9 +50,8 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
                                             }
                                         };
                                         if u16::from_be(local_port) == port {
-                                            let process_name = name(pid).map_err(|e| {
-                                                io::Error::new(io::ErrorKind::Other, e)
-                                            })?;
+                                            let process_name =
+                                                name(pid).map_err(|e| io::Error::other(e))?;
                                             debug!(
                                                 "Found process '{}' with PID {} listening on port {}",
                                                 process_name, pid, port

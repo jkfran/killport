@@ -207,8 +207,7 @@ mod tests {
 
     #[test]
     fn test_cli_args_mode_process() {
-        let args =
-            KillPortArgs::try_parse_from(["killport", "8080", "--mode", "process"]).unwrap();
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "--mode", "process"]).unwrap();
         assert_eq!(args.mode, Mode::Process);
     }
 

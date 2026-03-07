@@ -45,10 +45,7 @@ fn native_process_kill_succeeds() {
         .times(1) // Ensure the kill method is called exactly once
         .returning(|_| Ok(true)); // Simulate successful kill
 
-    assert_eq!(
-        mock_process.kill(KillportSignal(Signal::SIGKILL)).unwrap(),
-        true
-    );
+    assert!(mock_process.kill(KillportSignal(Signal::SIGKILL)).unwrap());
 }
 
 #[test]
@@ -60,12 +57,9 @@ fn docker_container_kill_succeeds() {
         .times(1)
         .returning(|_| Ok(true));
 
-    assert_eq!(
-        mock_container
-            .kill(KillportSignal(Signal::SIGKILL))
-            .unwrap(),
-        true
-    );
+    assert!(mock_container
+        .kill(KillportSignal(Signal::SIGKILL))
+        .unwrap());
 }
 
 #[test]

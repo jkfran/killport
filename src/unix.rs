@@ -29,13 +29,10 @@ impl Killable for UnixProcess {
         info!("Killing process '{}' with PID {}", self.name, self.pid);
 
         kill(self.pid, signal.0).map(|_| true).map_err(|e| {
-            Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Failed to kill process '{}' with PID {}: {}",
-                    self.name, self.pid, e
-                ),
-            )
+            Error::other(format!(
+                "Failed to kill process '{}' with PID {}: {}",
+                self.name, self.pid, e
+            ))
         })
     }
 
@@ -48,7 +45,7 @@ impl Killable for UnixProcess {
     /// # Returns
     ///
     /// * `String` - A string that describes the type of the killable target. For a `UnixProcess` it will return "process",
-    /// and for a `DockerContainer` it will return "container".
+    ///   and for a `DockerContainer` it will return "container".
     fn get_type(&self) -> KillableType {
         KillableType::Process
     }
@@ -99,7 +96,7 @@ mod tests {
     fn test_unix_process_kill_success() {
         // Spawn a child process that we can kill
         use std::process::Command;
-        let child = Command::new("sleep")
+        let mut child = Command::new("sleep")
             .arg("60")
             .spawn()
             .expect("Failed to spawn sleep process");
@@ -110,8 +107,8 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap());
 
-        // Wait for child to fully exit
-        let _ = std::process::Command::new("wait").arg(pid.to_string()).status();
+        // Wait for child to fully exit (avoids zombie process)
+        let _ = child.wait();
     }
 
     #[test]

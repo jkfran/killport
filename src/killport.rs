@@ -64,7 +64,10 @@ pub struct NativeProcessFinder;
 impl ProcessFinder for NativeProcessFinder {
     fn find_target_processes(&self, port: u16) -> Result<Vec<Box<dyn Killable>>, Error> {
         let processes = find_target_processes(port)?;
-        Ok(processes.into_iter().map(|p| Box::new(p) as Box<dyn Killable>).collect())
+        Ok(processes
+            .into_iter()
+            .map(|p| Box::new(p) as Box<dyn Killable>)
+            .collect())
     }
 }
 
@@ -104,8 +107,7 @@ impl KillportOperations for Killport {
         port: u16,
         mode: Mode,
     ) -> Result<Vec<Box<dyn Killable>>, Error> {
-        KillportWithDeps::new(NativeProcessFinder, RealDockerOps)
-            .find_target_killables(port, mode)
+        KillportWithDeps::new(NativeProcessFinder, RealDockerOps).find_target_killables(port, mode)
     }
 
     fn kill_service_by_port(
@@ -178,12 +180,9 @@ impl<P: ProcessFinder, D: DockerOps> KillportWithDeps<P, D> {
         let target_killables = self.find_target_killables(port, mode)?;
 
         for killable in target_killables {
-            if dry_run {
+            let killed = dry_run || killable.kill(signal.clone())?;
+            if killed {
                 results.push((killable.get_type(), killable.get_name()));
-            } else {
-                if killable.kill(signal.clone())? {
-                    results.push((killable.get_type(), killable.get_name()));
-                }
             }
         }
 
@@ -288,8 +287,7 @@ mod tests {
             self.kill_result = result;
             self
         }
-
-}
+    }
 
     impl Killable for MockKillable {
         fn kill(&self, _signal: KillportSignal) -> Result<bool, Error> {
@@ -319,12 +317,17 @@ mod tests {
         }
     }
 
-    struct FnDockerOps<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<DockerContainer>, Error>> {
+    struct FnDockerOps<
+        P: Fn() -> Result<bool, Error>,
+        C: Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+    > {
         is_present: P,
         find_containers: C,
     }
 
-    impl<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<DockerContainer>, Error>> DockerOps for FnDockerOps<P, C> {
+    impl<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<DockerContainer>, Error>>
+        DockerOps for FnDockerOps<P, C>
+    {
         fn is_docker_present(&self) -> Result<bool, Error> {
             (self.is_present)()
         }
@@ -334,18 +337,31 @@ mod tests {
         }
     }
 
-    fn no_docker() -> FnDockerOps<impl Fn() -> Result<bool, Error>, impl Fn(u16) -> Result<Vec<DockerContainer>, Error>> {
+    #[allow(clippy::type_complexity)]
+    fn no_docker() -> FnDockerOps<
+        impl Fn() -> Result<bool, Error>,
+        impl Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+    > {
         FnDockerOps {
             is_present: || Ok(false),
             find_containers: |_| Ok(vec![]),
         }
     }
 
-    fn docker_with_containers(containers: Vec<String>) -> FnDockerOps<impl Fn() -> Result<bool, Error>, impl Fn(u16) -> Result<Vec<DockerContainer>, Error>> {
+    #[allow(clippy::type_complexity)]
+    fn docker_with_containers(
+        containers: Vec<String>,
+    ) -> FnDockerOps<
+        impl Fn() -> Result<bool, Error>,
+        impl Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+    > {
         FnDockerOps {
             is_present: || Ok(true),
             find_containers: move |_| {
-                Ok(containers.iter().map(|n| DockerContainer { name: n.clone() }).collect())
+                Ok(containers
+                    .iter()
+                    .map(|n| DockerContainer { name: n.clone() })
+                    .collect())
             },
         }
     }
@@ -577,7 +593,12 @@ mod tests {
     #[test]
     fn test_find_killables_process_finder_error() {
         let finder = FnProcessFinder {
-            finder: |_| Err(Error::new(std::io::ErrorKind::PermissionDenied, "access denied")),
+            finder: |_| {
+                Err(Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "access denied",
+                ))
+            },
         };
         let kp = KillportWithDeps::new(finder, no_docker());
         let result = kp.find_target_killables(8080, Mode::Auto);
@@ -592,7 +613,7 @@ mod tests {
             finder: |_| Ok(vec![]),
         };
         let docker = FnDockerOps {
-            is_present: || Err(Error::new(std::io::ErrorKind::Other, "docker error")),
+            is_present: || Err(Error::other("docker error")),
             find_containers: |_| Ok(vec![]),
         };
         let kp = KillportWithDeps::new(finder, docker);
@@ -607,7 +628,7 @@ mod tests {
         };
         let docker = FnDockerOps {
             is_present: || Ok(true),
-            find_containers: |_| Err(Error::new(std::io::ErrorKind::Other, "container error")),
+            find_containers: |_| Err(Error::other("container error")),
         };
         let kp = KillportWithDeps::new(finder, docker);
         let result = kp.find_target_killables(8080, Mode::Auto);
@@ -637,9 +658,8 @@ mod tests {
     fn test_kill_service_kill_returns_false() {
         let finder = FnProcessFinder {
             finder: |_| {
-                let p: Box<dyn Killable> = Box::new(
-                    MockKillable::process("my_app").with_kill_result(Ok(false)),
-                );
+                let p: Box<dyn Killable> =
+                    Box::new(MockKillable::process("my_app").with_kill_result(Ok(false)));
                 Ok(vec![p])
             },
         };
@@ -647,20 +667,24 @@ mod tests {
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, false)
             .unwrap();
-        assert!(results.is_empty(), "Process that returned false should not be in results");
+        assert!(
+            results.is_empty(),
+            "Process that returned false should not be in results"
+        );
     }
 
     #[test]
     fn test_kill_service_kill_error_propagates() {
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p: Box<dyn Killable> = Box::new(
-                    MockKillable::process("my_app")
-                        .with_kill_result(Err(Error::new(std::io::ErrorKind::PermissionDenied, "EPERM"))),
-                );
-                Ok(vec![p])
-            },
-        };
+        let finder =
+            FnProcessFinder {
+                finder: |_| {
+                    let p: Box<dyn Killable> =
+                        Box::new(MockKillable::process("my_app").with_kill_result(Err(
+                            Error::new(std::io::ErrorKind::PermissionDenied, "EPERM"),
+                        )));
+                    Ok(vec![p])
+                },
+            };
         let kp = KillportWithDeps::new(finder, no_docker());
         let result = kp.kill_service_by_port(8080, signal(), Mode::Auto, false);
         assert!(result.is_err());

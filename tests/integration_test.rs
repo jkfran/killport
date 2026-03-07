@@ -218,7 +218,10 @@ fn test_signal_sigkill() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "-s", "sigkill"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "-s", "sigkill"])
+        .assert()
+        .success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
     let _ = child.wait();
@@ -231,7 +234,10 @@ fn test_signal_sigterm() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "-s", "sigterm"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "-s", "sigterm"])
+        .assert()
+        .success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
     let _ = child.wait();
@@ -244,7 +250,10 @@ fn test_signal_sighup() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "-s", "sighup"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "-s", "sighup"])
+        .assert()
+        .success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
     let _ = child.wait();
@@ -257,7 +266,10 @@ fn test_signal_sigint() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "-s", "sigint"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "-s", "sigint"])
+        .assert()
+        .success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
     let _ = child.wait();
@@ -371,7 +383,10 @@ fn test_dry_run_does_not_kill() {
     let pid = child.id();
 
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "--dry-run"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "--dry-run"])
+        .assert()
+        .success();
     assert_match(&command.get_output().stdout, "Would kill", port);
 
     // Verify the process is still alive after dry run
@@ -391,7 +406,10 @@ fn test_dry_run_output_format() {
     let mut child = start_tcp_listener(tempdir.path(), port);
 
     let mut cmd = Command::cargo_bin("killport").unwrap();
-    let command = cmd.args([&port.to_string(), "--dry-run"]).assert().success();
+    let command = cmd
+        .args([&port.to_string(), "--dry-run"])
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&command.get_output().stdout);
     assert!(
         stdout.contains("Would kill"),
@@ -585,7 +603,14 @@ fn test_combined_flags() {
     let mut child = start_tcp_listener(tempdir.path(), port);
     let mut cmd = Command::cargo_bin("killport").unwrap();
     let command = cmd
-        .args([&port.to_string(), "-m", "process", "-s", "sigterm", "--dry-run"])
+        .args([
+            &port.to_string(),
+            "-m",
+            "process",
+            "-s",
+            "sigterm",
+            "--dry-run",
+        ])
         .assert()
         .success();
     assert_match(&command.get_output().stdout, "Would kill", port);

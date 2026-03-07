@@ -20,8 +20,8 @@ impl DockerContainer {
     pub fn kill_container(name: &str, signal: KillportSignal) -> Result<(), Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
-            let docker = Docker::connect_with_socket_defaults()
-                .map_err(|e| Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            let docker =
+                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
 
             let options = KillContainerOptions {
                 signal: signal.to_string(),
@@ -30,7 +30,7 @@ impl DockerContainer {
             docker
                 .kill_container(name, Some(options))
                 .await
-                .map_err(|e| Error::new(std::io::ErrorKind::Other, e.to_string()))
+                .map_err(|e| Error::other(e.to_string()))
         })
     }
 
@@ -38,8 +38,8 @@ impl DockerContainer {
     pub fn find_target_containers(port: u16) -> Result<Vec<Self>, Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
-            let docker = Docker::connect_with_socket_defaults()
-                .map_err(|e| Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            let docker =
+                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
 
             let mut filters = HashMap::new();
             filters.insert("publish".to_string(), vec![port.to_string()]);
@@ -53,7 +53,7 @@ impl DockerContainer {
             let containers = docker
                 .list_containers::<String>(Some(options))
                 .await
-                .map_err(|e| Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                .map_err(|e| Error::other(e.to_string()))?;
 
             Ok(containers
                 .iter()
@@ -73,8 +73,8 @@ impl DockerContainer {
     pub fn is_docker_present() -> Result<bool, Error> {
         let rt = Runtime::new()?;
         rt.block_on(async {
-            let docker = Docker::connect_with_socket_defaults()
-                .map_err(|e| Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            let docker =
+                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
 
             // Attempt to get the Docker version as a test of connectivity.
             match docker.version().await {
