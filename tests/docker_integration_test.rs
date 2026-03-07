@@ -1,6 +1,5 @@
 mod utils;
 
-use assert_cmd::Command;
 use std::process::Command as SystemCommand;
 use std::time::{Duration, Instant};
 use utils::get_available_port;
@@ -96,7 +95,7 @@ fn test_kill_container_mode_container() {
         port
     );
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
         .args([&port.to_string(), "--mode", "container"])
         .assert()
@@ -136,7 +135,7 @@ fn test_kill_container_mode_auto() {
         port
     );
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd.args([&port.to_string()]).assert().success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -167,7 +166,7 @@ fn test_dry_run_container_still_alive() {
         port
     );
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
         .args([&port.to_string(), "--mode", "container", "--dry-run"])
         .assert()
@@ -195,7 +194,7 @@ fn test_no_container_on_port() {
     let port = get_available_port();
     // No container started on this port
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
         .success()
@@ -212,7 +211,7 @@ fn test_container_mode_ignores_native_process() {
     let mut child = utils::start_tcp_listener(tempdir.path(), port);
     let pid = child.id();
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
         .args([&port.to_string(), "--mode", "container"])
         .assert()
@@ -248,7 +247,7 @@ fn test_kill_container_with_signal() {
         port
     );
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
         .args([&port.to_string(), "--mode", "container", "-s", "sigkill"])
         .assert()
@@ -284,7 +283,7 @@ fn test_auto_mode_docker_proxy_not_in_output() {
         port
     );
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd.args([&port.to_string()]).assert().success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);

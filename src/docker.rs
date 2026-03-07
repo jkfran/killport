@@ -1,5 +1,5 @@
 use crate::signal::KillportSignal;
-use bollard::container::{KillContainerOptions, ListContainersOptions};
+use bollard::query_parameters::{KillContainerOptions, ListContainersOptions};
 use bollard::Docker;
 use log::debug;
 use std::collections::HashMap;
@@ -46,12 +46,12 @@ impl DockerContainer {
             filters.insert("status".to_string(), vec!["running".to_string()]);
 
             let options = ListContainersOptions {
-                filters,
+                filters: Some(filters),
                 ..Default::default()
             };
 
             let containers = docker
-                .list_containers::<String>(Some(options))
+                .list_containers(Some(options))
                 .await
                 .map_err(|e| Error::other(e.to_string()))?;
 

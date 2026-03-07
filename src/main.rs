@@ -5,8 +5,8 @@
 //! terminate any processes listening on those ports.
 
 use clap::Parser;
-use clap_verbosity_flag::LevelFilter;
 use log::error;
+use log::LevelFilter;
 use std::io::Write;
 use std::process::exit;
 

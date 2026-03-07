@@ -4,7 +4,6 @@ use regex::bytes::Regex;
 use utils::start_udp_listener;
 use utils::{get_available_port, is_process_alive, start_tcp_listener};
 
-use assert_cmd::Command;
 use tempfile::tempdir;
 
 #[cfg(unix)]
@@ -29,50 +28,50 @@ fn assert_match(data: &[u8], msg: &str, port: u16) {
 
 #[test]
 fn test_cli_no_args() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.assert().failure();
 }
 
 #[test]
 fn test_cli_help_flag() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["--help"]).assert().success();
 }
 
 #[test]
 fn test_cli_version_flag() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["--version"]).assert().success();
 }
 
 #[test]
 fn test_cli_invalid_port_string() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["abc"]).assert().failure();
 }
 
 #[test]
 fn test_cli_invalid_port_overflow() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["99999"]).assert().failure();
 }
 
 #[test]
 fn test_cli_invalid_port_negative() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["-1"]).assert().failure();
 }
 
 #[test]
 fn test_cli_invalid_mode() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["8080", "--mode", "foobar"]).assert().failure();
 }
 
 #[cfg(unix)]
 #[test]
 fn test_cli_invalid_signal() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["8080", "-s", "NOTASIGNAL"]).assert().failure();
 }
 
@@ -81,7 +80,7 @@ fn test_cli_invalid_signal() {
 #[test]
 fn test_basic_kill_no_process() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
         .success()
@@ -93,7 +92,7 @@ fn test_basic_kill_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd.args([&port.to_string()]).assert().success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
@@ -107,7 +106,7 @@ fn test_kill_tcp_ipv4_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd.args([&port.to_string()]).assert().success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
@@ -118,7 +117,7 @@ fn test_kill_tcp_ipv4_process() {
 fn test_kill_tcp_process_already_dead() {
     let port = get_available_port();
     // No listener started, port is free
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
         .success()
@@ -133,7 +132,7 @@ fn test_kill_udp_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_udp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd.args([&port.to_string()]).assert().success();
     assert_match(&command.get_output().stdout, "Successfully killed", port);
     let _ = child.kill();
@@ -151,7 +150,7 @@ fn test_kill_multiple_ports_all_succeed() {
     let tempdir2 = tempdir().unwrap();
     let mut child2 = start_tcp_listener(tempdir2.path(), port2);
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port1.to_string(), &port2.to_string()])
         .assert()
@@ -185,7 +184,7 @@ fn test_kill_multiple_ports_some_empty() {
     let mut child = start_tcp_listener(tempdir.path(), port1);
     // port2 has no listener
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port1.to_string(), &port2.to_string()])
         .assert()
@@ -202,7 +201,7 @@ fn test_kill_multiple_ports_some_empty() {
 fn test_kill_multiple_ports_all_empty() {
     let port1 = get_available_port();
     let port2 = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port1.to_string(), &port2.to_string()])
         .assert()
         .success()
@@ -220,7 +219,7 @@ fn test_signal_sigkill() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "-s", "sigkill"])
         .assert()
@@ -236,7 +235,7 @@ fn test_signal_sigterm() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "-s", "sigterm"])
         .assert()
@@ -252,7 +251,7 @@ fn test_signal_sighup() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "-s", "sighup"])
         .assert()
@@ -268,7 +267,7 @@ fn test_signal_sigint() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "-s", "sigint"])
         .assert()
@@ -285,7 +284,7 @@ fn test_mode_auto_finds_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "--mode", "auto"])
         .assert()
@@ -300,7 +299,7 @@ fn test_mode_process_finds_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "--mode", "process"])
         .assert()
@@ -315,7 +314,7 @@ fn test_mode_container_does_not_find_native_process() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
         .args([&port.to_string(), "--mode", "container"])
         .assert()
@@ -334,7 +333,7 @@ fn test_mode_container_does_not_find_native_process() {
 #[test]
 fn test_mode_auto_no_service_message() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "auto"])
         .assert()
         .success()
@@ -344,7 +343,7 @@ fn test_mode_auto_no_service_message() {
 #[test]
 fn test_mode_process_no_service_message() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "process"])
         .assert()
         .success()
@@ -354,7 +353,7 @@ fn test_mode_process_no_service_message() {
 #[test]
 fn test_mode_container_no_service_message() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
         .success()
@@ -366,7 +365,7 @@ fn test_mode_short_flag() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "-m", "process"])
         .assert()
@@ -385,7 +384,7 @@ fn test_dry_run_does_not_kill() {
     let mut child = start_tcp_listener(tempdir.path(), port);
     let pid = child.id();
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "--dry-run"])
         .assert()
@@ -408,7 +407,7 @@ fn test_dry_run_output_format() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "--dry-run"])
         .assert()
@@ -431,7 +430,7 @@ fn test_dry_run_output_format() {
 #[test]
 fn test_dry_run_no_process() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--dry-run"])
         .assert()
         .success()
@@ -445,7 +444,7 @@ fn test_dry_run_with_signal() {
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port.to_string(), "--dry-run", "-s", "sigterm"])
         .assert()
@@ -465,7 +464,7 @@ fn test_dry_run_multiple_ports() {
     let mut child1 = start_tcp_listener(tempdir1.path(), port1);
     let mut child2 = start_tcp_listener(tempdir2.path(), port2);
 
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([&port1.to_string(), &port2.to_string(), "--dry-run"])
         .assert()
@@ -488,7 +487,7 @@ fn test_exit_code_success_on_kill() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()]).assert().success();
     let _ = child.kill();
     let _ = child.wait();
@@ -497,13 +496,13 @@ fn test_exit_code_success_on_kill() {
 #[test]
 fn test_exit_code_success_no_process() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()]).assert().success();
 }
 
 #[test]
 fn test_exit_code_error_invalid_args() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.assert().failure();
 }
 
@@ -512,13 +511,13 @@ fn test_exit_code_error_invalid_args() {
 #[test]
 fn test_port_zero() {
     // Port 0 may match system processes on some OSes, so just verify it doesn't crash
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["0"]).assert().success();
 }
 
 #[test]
 fn test_port_65535() {
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["65535"])
         .assert()
         .success()
@@ -532,14 +531,14 @@ fn test_kill_same_port_twice_rapidly() {
     let mut child = start_tcp_listener(tempdir.path(), port);
 
     // First kill should succeed
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()]).assert().success();
 
     // Wait briefly for process to fully die
     std::thread::sleep(std::time::Duration::from_millis(200));
 
     // Second kill should find nothing
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
         .success()
@@ -554,7 +553,7 @@ fn test_kill_same_port_twice_rapidly() {
 #[test]
 fn test_output_no_service_format_auto() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
         .success()
@@ -564,7 +563,7 @@ fn test_output_no_service_format_auto() {
 #[test]
 fn test_output_no_process_format() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "process"])
         .assert()
         .success()
@@ -574,7 +573,7 @@ fn test_output_no_process_format() {
 #[test]
 fn test_output_no_container_format() {
     let port = get_available_port();
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
         .success()
@@ -586,7 +585,7 @@ fn test_output_kill_message_contains_process_name() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd.args([&port.to_string()]).assert().success();
     let stdout = String::from_utf8_lossy(&command.get_output().stdout);
     assert!(stdout.contains("Successfully killed"));
@@ -604,7 +603,7 @@ fn test_combined_flags() {
     let port = get_available_port();
     let tempdir = tempdir().unwrap();
     let mut child = start_tcp_listener(tempdir.path(), port);
-    let mut cmd = Command::cargo_bin("killport").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let command = cmd
         .args([
             &port.to_string(),
