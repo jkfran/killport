@@ -80,19 +80,19 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, Error> {
     let inodes = find_target_inodes(port);
 
     for inode in inodes {
-        let processes = procfs::process::all_processes().map_err(|e| std::io::Error::other(e))?;
+        let processes = procfs::process::all_processes().map_err(std::io::Error::other)?;
         for p in processes {
-            let process = p.map_err(|e| std::io::Error::other(e))?;
+            let process = p.map_err(std::io::Error::other)?;
 
             if let Ok(fds) = process.fd() {
                 for fd in fds {
-                    let fd = fd.map_err(|e| std::io::Error::other(e))?;
+                    let fd = fd.map_err(std::io::Error::other)?;
 
                     if let FDTarget::Socket(sock_inode) = fd.target {
                         if inode == sock_inode {
                             let name = process
                                 .cmdline()
-                                .map_err(|e| std::io::Error::other(e))?
+                                .map_err(std::io::Error::other)?
                                 .join(" ");
                             debug!("Found process '{}' with PID {}", name, process.pid());
                             target_pids.push(UnixProcess::new(Pid::from_raw(process.pid), name));

@@ -51,7 +51,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
                                         };
                                         if u16::from_be(local_port) == port {
                                             let process_name =
-                                                name(pid).map_err(|e| io::Error::other(e))?;
+                                                name(pid).map_err(io::Error::other)?;
                                             debug!(
                                                 "Found process '{}' with PID {} listening on port {}",
                                                 process_name, pid, port
