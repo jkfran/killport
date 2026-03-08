@@ -1,10 +1,10 @@
-use crate::docker::DockerContainer;
+use crate::container::Container;
 use crate::signal::KillportSignal;
 use std::fmt::Display;
 use std::io::Error;
 use tokio::runtime::Builder;
 
-/// Interface for killable targets such as native process and docker container.
+/// Interface for killable targets such as native processes and containers.
 pub trait Killable {
     fn kill(&self, signal: KillportSignal) -> Result<bool, Error>;
 
@@ -28,10 +28,10 @@ impl Display for KillableType {
     }
 }
 
-impl Killable for DockerContainer {
+impl Killable for Container {
     fn kill(&self, signal: KillportSignal) -> Result<bool, Error> {
         let rt = Builder::new_current_thread().enable_all().build()?;
-        Self::kill_container(&rt, &self.name, signal)?;
+        Self::kill(&rt, &self.name, signal)?;
         Ok(true)
     }
 
@@ -85,32 +85,32 @@ mod tests {
     }
 
     #[test]
-    fn test_docker_container_get_type() {
-        let container = DockerContainer {
+    fn test_container_get_type() {
+        let container = Container {
             name: "test".to_string(),
         };
         assert_eq!(container.get_type(), KillableType::Container);
     }
 
     #[test]
-    fn test_docker_container_get_name() {
-        let container = DockerContainer {
+    fn test_container_get_name() {
+        let container = Container {
             name: "my-container".to_string(),
         };
         assert_eq!(container.get_name(), "my-container");
     }
 
     #[test]
-    fn test_docker_container_get_name_empty() {
-        let container = DockerContainer {
+    fn test_container_get_name_empty() {
+        let container = Container {
             name: String::new(),
         };
         assert_eq!(container.get_name(), "");
     }
 
     #[test]
-    fn test_docker_container_get_name_special_chars() {
-        let container = DockerContainer {
+    fn test_container_get_name_special_chars() {
+        let container = Container {
             name: "my/container-name_123".to_string(),
         };
         assert_eq!(container.get_name(), "my/container-name_123");

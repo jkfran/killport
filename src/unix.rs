@@ -38,14 +38,7 @@ impl Killable for UnixProcess {
 
     /// Returns the type of the killable target.
     ///
-    /// This method is used to identify the type of the target (either a native process or a Docker container)
-    /// that is being handled. This information can be useful for logging, error handling, or other needs
-    /// where type of the target is relevant.
-    ///
-    /// # Returns
-    ///
-    /// * `String` - A string that describes the type of the killable target. For a `UnixProcess` it will return "process",
-    ///   and for a `DockerContainer` it will return "container".
+    /// Returns the type of the killable target (process or container).
     fn get_type(&self) -> KillableType {
         KillableType::Process
     }

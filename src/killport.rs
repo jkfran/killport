@@ -1,4 +1,4 @@
-use crate::docker::DockerContainer;
+use crate::container::Container;
 use crate::killable::{Killable, KillableType};
 #[cfg(target_os = "linux")]
 use crate::linux::find_target_processes;
@@ -15,10 +15,10 @@ pub trait ProcessFinder {
     fn find_target_processes(&self, port: u16) -> Result<Vec<Box<dyn Killable>>, Error>;
 }
 
-/// Trait for Docker operations (enables mocking in tests).
-pub trait DockerOps {
-    fn is_docker_present(&self) -> Result<bool, Error>;
-    fn find_target_containers(&self, port: u16) -> Result<Vec<DockerContainer>, Error>;
+/// Trait for container runtime operations (enables mocking in tests).
+pub trait ContainerOps {
+    fn is_available(&self) -> Result<bool, Error>;
+    fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error>;
 }
 
 /// Real implementation of ProcessFinder that calls the platform-specific functions.
@@ -34,12 +34,12 @@ impl ProcessFinder for NativeProcessFinder {
     }
 }
 
-/// Real implementation of DockerOps that calls the Docker API.
-pub struct RealDockerOps {
+/// Real implementation of ContainerOps that calls the container runtime API.
+pub struct RealContainerOps {
     rt: Runtime,
 }
 
-impl RealDockerOps {
+impl RealContainerOps {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
             rt: Builder::new_current_thread().enable_all().build()?,
@@ -47,34 +47,34 @@ impl RealDockerOps {
     }
 }
 
-impl DockerOps for RealDockerOps {
-    fn is_docker_present(&self) -> Result<bool, Error> {
-        DockerContainer::is_docker_present(&self.rt)
+impl ContainerOps for RealContainerOps {
+    fn is_available(&self) -> Result<bool, Error> {
+        Container::is_available(&self.rt)
     }
 
-    fn find_target_containers(&self, port: u16) -> Result<Vec<DockerContainer>, Error> {
-        DockerContainer::find_target_containers(&self.rt, port)
+    fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error> {
+        Container::find_target_containers(&self.rt, port)
     }
 }
 
 /// Killport implementation with injectable dependencies for testability.
-pub struct Killport<P: ProcessFinder, D: DockerOps> {
+pub struct Killport<P: ProcessFinder, D: ContainerOps> {
     process_finder: P,
-    docker_ops: D,
+    container_ops: D,
 }
 
-impl Killport<NativeProcessFinder, RealDockerOps> {
+impl Killport<NativeProcessFinder, RealContainerOps> {
     /// Creates a Killport with real (production) dependencies.
     pub fn with_real_deps() -> Result<Self, Error> {
-        Ok(Self::new(NativeProcessFinder, RealDockerOps::new()?))
+        Ok(Self::new(NativeProcessFinder, RealContainerOps::new()?))
     }
 }
 
-impl<P: ProcessFinder, D: DockerOps> Killport<P, D> {
-    pub fn new(process_finder: P, docker_ops: D) -> Self {
+impl<P: ProcessFinder, D: ContainerOps> Killport<P, D> {
+    pub fn new(process_finder: P, container_ops: D) -> Self {
         Self {
             process_finder,
-            docker_ops,
+            container_ops,
         }
     }
 
@@ -84,12 +84,12 @@ impl<P: ProcessFinder, D: DockerOps> Killport<P, D> {
         mode: Mode,
     ) -> Result<Vec<Box<dyn Killable>>, Error> {
         let mut target_killables: Vec<Box<dyn Killable>> = vec![];
-        let docker_present = mode != Mode::Process && self.docker_ops.is_docker_present()?;
+        let containers_available = mode != Mode::Process && self.container_ops.is_available()?;
 
         // Find containers first — if any are found, native processes on the same port
         // are port forwarders (docker-proxy, OrbStack Helper, etc.) and must be skipped.
-        let has_containers = if docker_present && mode != Mode::Process {
-            let target_containers = self.docker_ops.find_target_containers(port)?;
+        let has_containers = if containers_available && mode != Mode::Process {
+            let target_containers = self.container_ops.find_target_containers(port)?;
             let found = !target_containers.is_empty();
             for container in target_containers {
                 target_killables.push(Box::new(container));
@@ -194,50 +194,50 @@ mod tests {
         }
     }
 
-    struct FnDockerOps<
+    struct FnContainerOps<
         P: Fn() -> Result<bool, Error>,
-        C: Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+        C: Fn(u16) -> Result<Vec<Container>, Error>,
     > {
         is_present: P,
         find_containers: C,
     }
 
-    impl<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<DockerContainer>, Error>>
-        DockerOps for FnDockerOps<P, C>
+    impl<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<Container>, Error>> ContainerOps
+        for FnContainerOps<P, C>
     {
-        fn is_docker_present(&self) -> Result<bool, Error> {
+        fn is_available(&self) -> Result<bool, Error> {
             (self.is_present)()
         }
 
-        fn find_target_containers(&self, port: u16) -> Result<Vec<DockerContainer>, Error> {
+        fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error> {
             (self.find_containers)(port)
         }
     }
 
     #[allow(clippy::type_complexity)]
-    fn no_docker() -> FnDockerOps<
+    fn no_containers() -> FnContainerOps<
         impl Fn() -> Result<bool, Error>,
-        impl Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+        impl Fn(u16) -> Result<Vec<Container>, Error>,
     > {
-        FnDockerOps {
+        FnContainerOps {
             is_present: || Ok(false),
             find_containers: |_| Ok(vec![]),
         }
     }
 
     #[allow(clippy::type_complexity)]
-    fn docker_with_containers(
+    fn with_containers(
         containers: Vec<String>,
-    ) -> FnDockerOps<
+    ) -> FnContainerOps<
         impl Fn() -> Result<bool, Error>,
-        impl Fn(u16) -> Result<Vec<DockerContainer>, Error>,
+        impl Fn(u16) -> Result<Vec<Container>, Error>,
     > {
-        FnDockerOps {
+        FnContainerOps {
             is_present: || Ok(true),
             find_containers: move |_| {
                 Ok(containers
                     .iter()
-                    .map(|n| DockerContainer { name: n.clone() })
+                    .map(|n| Container { name: n.clone() })
                     .collect())
             },
         }
@@ -257,14 +257,14 @@ mod tests {
     // ─── Orchestration Tests: find_target_killables ──────────────────────
 
     #[test]
-    fn test_find_killables_mode_auto_no_docker() {
+    fn test_find_killables_mode_auto_no_containers() {
         let finder = FnProcessFinder {
             finder: |_| {
                 let p: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
                 Ok(vec![p])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].get_type(), KillableType::Process);
@@ -281,8 +281,8 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
+        let ct = with_containers(vec!["nginx".to_string()]);
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         // Only the container — native process is a port forwarder and must be skipped
         assert_eq!(results.len(), 1);
@@ -301,8 +301,8 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
-        let docker = docker_with_containers(vec![]); // docker present, no containers
-        let kp = Killport::new(finder, docker);
+        let ct = with_containers(vec![]); // runtime present, no containers
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         // Both returned — no containers means these are real targets
         assert_eq!(results.len(), 2);
@@ -311,8 +311,8 @@ mod tests {
     }
 
     #[test]
-    fn test_find_killables_docker_absent_returns_all_processes() {
-        // When Docker is NOT present, all processes are returned
+    fn test_find_killables_runtime_absent_returns_all_processes() {
+        // When container runtime is NOT present, all processes are returned
         let finder = FnProcessFinder {
             finder: |_| {
                 let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
@@ -320,7 +320,7 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].get_name(), "docker-proxy");
@@ -328,8 +328,8 @@ mod tests {
     }
 
     #[test]
-    fn test_find_killables_process_mode_skips_docker() {
-        // In Process mode, Docker is never checked — all processes returned
+    fn test_find_killables_process_mode_skips_containers() {
+        // In Process mode, container runtime is never checked — all processes returned
         let finder = FnProcessFinder {
             finder: |_| {
                 let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
@@ -337,11 +337,11 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
-        let docker = FnDockerOps {
-            is_present: || panic!("Docker should not be checked in Process mode"),
-            find_containers: |_| panic!("Docker should not be checked in Process mode"),
+        let ct = FnContainerOps {
+            is_present: || panic!("Container runtime should not be checked in Process mode"),
+            find_containers: |_| panic!("Container runtime should not be checked in Process mode"),
         };
-        let kp = Killport::new(finder, docker);
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Process).unwrap();
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].get_name(), "docker-proxy");
@@ -358,8 +358,8 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
+        let ct = with_containers(vec!["nginx".to_string()]);
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].get_type(), KillableType::Container);
@@ -374,12 +374,12 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        // Docker should never be checked in Process mode
-        let docker = FnDockerOps {
-            is_present: || panic!("Docker should not be checked in Process mode"),
-            find_containers: |_| panic!("Docker should not be checked in Process mode"),
+        // Container runtime should never be checked in Process mode
+        let ct = FnContainerOps {
+            is_present: || panic!("Container runtime should not be checked in Process mode"),
+            find_containers: |_| panic!("Container runtime should not be checked in Process mode"),
         };
-        let kp = Killport::new(finder, docker);
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Process).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].get_type(), KillableType::Process);
@@ -390,8 +390,8 @@ mod tests {
         let finder = FnProcessFinder {
             finder: |_| panic!("Process finder should not be called in Container mode"),
         };
-        let docker = docker_with_containers(vec!["redis".to_string()]);
-        let kp = Killport::new(finder, docker);
+        let ct = with_containers(vec!["redis".to_string()]);
+        let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Container).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].get_type(), KillableType::Container);
@@ -403,7 +403,7 @@ mod tests {
         let finder = FnProcessFinder {
             finder: |_| Ok(vec![]),
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
         assert!(results.is_empty());
     }
@@ -418,7 +418,7 @@ mod tests {
                 ))
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let result = kp.find_target_killables(8080, Mode::Auto);
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -426,15 +426,15 @@ mod tests {
     }
 
     #[test]
-    fn test_find_killables_docker_check_error() {
+    fn test_find_killables_container_check_error() {
         let finder = FnProcessFinder {
             finder: |_| Ok(vec![]),
         };
-        let docker = FnDockerOps {
-            is_present: || Err(Error::other("docker error")),
+        let ct = FnContainerOps {
+            is_present: || Err(Error::other("container runtime error")),
             find_containers: |_| Ok(vec![]),
         };
-        let kp = Killport::new(finder, docker);
+        let kp = Killport::new(finder, ct);
         let result = kp.find_target_killables(8080, Mode::Auto);
         assert!(result.is_err());
     }
@@ -444,11 +444,11 @@ mod tests {
         let finder = FnProcessFinder {
             finder: |_| Ok(vec![]),
         };
-        let docker = FnDockerOps {
+        let ct = FnContainerOps {
             is_present: || Ok(true),
             find_containers: |_| Err(Error::other("container error")),
         };
-        let kp = Killport::new(finder, docker);
+        let kp = Killport::new(finder, ct);
         let result = kp.find_target_killables(8080, Mode::Auto);
         assert!(result.is_err());
     }
@@ -463,7 +463,7 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, false)
             .unwrap();
@@ -481,7 +481,7 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, false)
             .unwrap();
@@ -503,7 +503,7 @@ mod tests {
                     Ok(vec![p])
                 },
             };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let result = kp.kill_service_by_port(8080, signal(), Mode::Auto, false);
         assert!(result.is_err());
     }
@@ -518,7 +518,7 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, true)
             .unwrap();
@@ -532,7 +532,7 @@ mod tests {
         let finder = FnProcessFinder {
             finder: |_| Ok(vec![]),
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, true)
             .unwrap();
@@ -549,7 +549,7 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
-        let kp = Killport::new(finder, no_docker());
+        let kp = Killport::new(finder, no_containers());
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, true)
             .unwrap();
@@ -567,8 +567,8 @@ mod tests {
                 Ok(vec![p])
             },
         };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
+        let ct = with_containers(vec!["nginx".to_string()]);
+        let kp = Killport::new(finder, ct);
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, true)
             .unwrap();

@@ -4,9 +4,9 @@ use std::process::Command as SystemCommand;
 use std::time::{Duration, Instant};
 use utils::get_available_port;
 
-/// Helper: run a Docker container that listens on the given port.
+/// Helper: run a container that listens on the given port.
 /// Returns the container ID.
-fn start_docker_container(port: u16) -> String {
+fn start_container(port: u16) -> String {
     let output = SystemCommand::new("docker")
         .args([
             "run",
@@ -17,7 +17,7 @@ fn start_docker_container(port: u16) -> String {
             "nginx:alpine",
         ])
         .output()
-        .expect("Failed to start Docker container");
+        .expect("Failed to start container");
 
     assert!(
         output.status.success(),
@@ -31,7 +31,7 @@ fn start_docker_container(port: u16) -> String {
         .to_string()
 }
 
-/// Helper: check if a Docker container is running.
+/// Helper: check if a container is running.
 fn is_container_running(container_id: &str) -> bool {
     let output = SystemCommand::new("docker")
         .args(["inspect", "-f", "{{.State.Running}}", container_id])
@@ -43,7 +43,7 @@ fn is_container_running(container_id: &str) -> bool {
     }
 }
 
-/// Helper: wait for a Docker container to be healthy/running and its port to be reachable.
+/// Helper: wait for a container to be healthy/running and its port to be reachable.
 fn wait_for_container(container_id: &str, port: u16, timeout: Duration) -> bool {
     let start = Instant::now();
     while start.elapsed() < timeout {
@@ -64,21 +64,21 @@ fn remove_container(container_id: &str) {
         .output();
 }
 
-// ─── Docker Integration Tests ────────────────────────────────────────────────
+// ─── Container Integration Tests ─────────────────────────────────────────────
 // All tests are #[ignore] so they only run when explicitly requested
-// via `cargo test --test docker_integration_test -- --ignored`
+// via `cargo test --test container_integration_test -- --ignored`
 
 #[test]
 #[ignore]
-fn test_docker_is_present() {
-    // Verify Docker is available in this environment
+fn test_container_runtime_is_present() {
+    // Verify container runtime is available in this environment
     let output = SystemCommand::new("docker")
         .args(["version"])
         .output()
-        .expect("Docker not found");
+        .expect("Container runtime not found");
     assert!(
         output.status.success(),
-        "Docker is not running: {}",
+        "Container runtime is not running: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
@@ -87,7 +87,7 @@ fn test_docker_is_present() {
 #[ignore]
 fn test_kill_container_mode_container() {
     let port = get_available_port();
-    let container_id = start_docker_container(port);
+    let container_id = start_container(port);
 
     assert!(
         wait_for_container(&container_id, port, Duration::from_secs(15)),
@@ -127,7 +127,7 @@ fn test_kill_container_mode_container() {
 #[ignore]
 fn test_kill_container_mode_auto() {
     let port = get_available_port();
-    let container_id = start_docker_container(port);
+    let container_id = start_container(port);
 
     assert!(
         wait_for_container(&container_id, port, Duration::from_secs(15)),
@@ -158,7 +158,7 @@ fn test_kill_container_mode_auto() {
 #[ignore]
 fn test_dry_run_container_still_alive() {
     let port = get_available_port();
-    let container_id = start_docker_container(port);
+    let container_id = start_container(port);
 
     assert!(
         wait_for_container(&container_id, port, Duration::from_secs(15)),
@@ -239,7 +239,7 @@ fn test_container_mode_ignores_native_process() {
 #[ignore]
 fn test_kill_container_with_signal() {
     let port = get_available_port();
-    let container_id = start_docker_container(port);
+    let container_id = start_container(port);
 
     assert!(
         wait_for_container(&container_id, port, Duration::from_secs(15)),
@@ -271,11 +271,11 @@ fn test_kill_container_with_signal() {
 
 #[test]
 #[ignore]
-fn test_auto_mode_docker_proxy_not_in_output() {
+fn test_auto_mode_port_forwarder_not_in_output() {
     // In auto mode with a container, port forwarder processes (docker-proxy,
     // OrbStack Helper, etc.) should be skipped — only the container is killed
     let port = get_available_port();
-    let container_id = start_docker_container(port);
+    let container_id = start_container(port);
 
     assert!(
         wait_for_container(&container_id, port, Duration::from_secs(15)),

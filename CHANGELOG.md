@@ -19,9 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Exit code 2 when no matching process or container is found (was 0)
 - Updated Cargo.toml keywords for better discoverability
+- Renamed Docker-specific types to generic container types (works with OrbStack, Podman, etc.)
+- Container runtime detection: skip native processes when containers own the port (fixes OrbStack crash)
 
 ### Fixed
 - Duplicate process entries when a process listens on both IPv4 and IPv6
+- Killing container runtime's port forwarder process (e.g., OrbStack Helper) instead of the container
 
 ## [1.1.0] - 2024-11-20
 

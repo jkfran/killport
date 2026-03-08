@@ -6,19 +6,19 @@ use std::collections::HashMap;
 use std::io::Error;
 use tokio::runtime::Runtime;
 
-pub struct DockerContainer {
+pub struct Container {
     pub name: String,
 }
 
-impl DockerContainer {
-    /// Kill the docker container.
+impl Container {
+    /// Kill the container by name.
     ///
     /// # Arguments
     ///
     /// * `rt` - A reference to a Tokio runtime.
     /// * `name` - A container name.
     /// * `signal` - A enum value representing the signal type.
-    pub fn kill_container(rt: &Runtime, name: &str, signal: KillportSignal) -> Result<(), Error> {
+    pub fn kill(rt: &Runtime, name: &str, signal: KillportSignal) -> Result<(), Error> {
         rt.block_on(async {
             let docker =
                 Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
@@ -34,13 +34,13 @@ impl DockerContainer {
         })
     }
 
-    /// Finds the Docker containers associated with the specified `port`.
+    /// Finds the containers associated with the specified `port`.
     pub fn find_target_containers(rt: &Runtime, port: u16) -> Result<Vec<Self>, Error> {
         rt.block_on(async {
             let docker = match Docker::connect_with_socket_defaults() {
                 Ok(d) => d,
                 Err(e) => {
-                    debug!("Docker socket not available for container lookup: {}", e);
+                    debug!("Container runtime socket not available: {}", e);
                     return Ok(vec![]);
                 }
             };
@@ -57,7 +57,7 @@ impl DockerContainer {
             let containers = match docker.list_containers(Some(options)).await {
                 Ok(c) => c,
                 Err(e) => {
-                    debug!("Failed to list Docker containers: {}", e);
+                    debug!("Failed to list containers: {}", e);
                     return Ok(vec![]);
                 }
             };
@@ -65,36 +65,31 @@ impl DockerContainer {
             Ok(containers
                 .iter()
                 .filter_map(|container| {
-                    container
-                        .names
-                        .as_ref()?
-                        .first()
-                        .map(|name| DockerContainer {
-                            name: name.strip_prefix('/').unwrap_or(name).to_string(),
-                        })
+                    container.names.as_ref()?.first().map(|name| Container {
+                        name: name.strip_prefix('/').unwrap_or(name).to_string(),
+                    })
                 })
                 .collect())
         })
     }
 
-    pub fn is_docker_present(rt: &Runtime) -> Result<bool, Error> {
+    pub fn is_available(rt: &Runtime) -> Result<bool, Error> {
         rt.block_on(async {
             let docker = match Docker::connect_with_socket_defaults() {
                 Ok(d) => d,
                 Err(e) => {
-                    debug!("Docker socket not available: {}", e);
+                    debug!("Container runtime socket not available: {}", e);
                     return Ok(false);
                 }
             };
 
-            // Attempt to get the Docker version as a test of connectivity.
             match docker.version().await {
                 Ok(version) => {
-                    debug!("Connected to Docker version: {:?}", version);
+                    debug!("Connected to container runtime: {:?}", version);
                     Ok(true)
                 }
                 Err(e) => {
-                    debug!("Failed to connect to Docker: {}", e);
+                    debug!("Failed to connect to container runtime: {}", e);
                     Ok(false)
                 }
             }

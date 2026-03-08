@@ -87,8 +87,8 @@ jobs:
           key: docker-tests
       - name: Pull nginx image
         run: docker pull nginx:alpine
-      - name: Run Docker integration tests
-        run: cargo test --test docker_integration_test -- --ignored
+      - name: Run container integration tests
+        run: cargo test --test container_integration_test -- --ignored
 
   # ──────────────────────────────────────────────
   # Job 5: Code Coverage
