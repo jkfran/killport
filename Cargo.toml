@@ -9,7 +9,7 @@ description = "A command-line tool to easily kill processes and containers runni
 readme = "README.md"
 homepage = "https://github.com/jkfran/killport"
 repository = "https://github.com/jkfran/killport"
-keywords = ["cli", "port", "process", "kill", "linux"]
+keywords = ["cli", "port", "process", "kill", "network"]
 categories = ["command-line-utilities"]
 
 [dependencies]
@@ -36,6 +36,12 @@ features = [
   "Win32_Networking_WinSock",
   "Win32_System_Diagnostics_ToolHelp",
 ]
+
+[build-dependencies]
+clap = { version = "4.5.60", features = ["derive"] }
+clap-verbosity-flag = "3.0.4"
+clap_complete = "4.5.66"
+clap_mangen = "0.2.31"
 
 [dev-dependencies]
 assert_cmd = "2.1.2"

@@ -83,7 +83,7 @@ fn test_basic_kill_no_process() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 }
 
@@ -120,7 +120,7 @@ fn test_kill_tcp_process_already_dead() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 }
 
@@ -188,7 +188,7 @@ fn test_kill_multiple_ports_some_empty() {
     let command = cmd
         .args([&port1.to_string(), &port2.to_string()])
         .assert()
-        .success();
+        .code(2);
     let stdout_str = String::from_utf8_lossy(&command.get_output().stdout);
     assert!(stdout_str.contains(&format!("listening on port {}", port1)));
     assert!(stdout_str.contains(&format!("No service found using port {}", port2)));
@@ -204,7 +204,7 @@ fn test_kill_multiple_ports_all_empty() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port1.to_string(), &port2.to_string()])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!(
             "No service found using port {}\nNo service found using port {}\n",
             port1, port2
@@ -318,7 +318,7 @@ fn test_mode_container_does_not_find_native_process() {
     let output = cmd
         .args([&port.to_string(), "--mode", "container"])
         .assert()
-        .success();
+        .code(2);
     let stdout_str = String::from_utf8_lossy(&output.get_output().stdout);
     // In container mode, native processes should not be killed
     assert!(
@@ -336,7 +336,7 @@ fn test_mode_auto_no_service_message() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "auto"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 }
 
@@ -346,7 +346,7 @@ fn test_mode_process_no_service_message() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "process"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No process found using port {}\n", port));
 }
 
@@ -356,7 +356,7 @@ fn test_mode_container_no_service_message() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No container found using port {}\n", port));
 }
 
@@ -433,7 +433,7 @@ fn test_dry_run_no_process() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--dry-run"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 }
 
@@ -494,10 +494,19 @@ fn test_exit_code_success_on_kill() {
 }
 
 #[test]
-fn test_exit_code_success_no_process() {
+fn test_exit_code_not_found() {
     let port = get_available_port();
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
-    cmd.args([&port.to_string()]).assert().success();
+    cmd.args([&port.to_string()]).assert().code(2);
+}
+
+#[test]
+fn test_exit_code_not_found_with_no_fail() {
+    let port = get_available_port();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
+    cmd.args([&port.to_string(), "--no-fail"])
+        .assert()
+        .success();
 }
 
 #[test]
@@ -512,7 +521,7 @@ fn test_exit_code_error_invalid_args() {
 fn test_port_zero() {
     // Port 0 may match system processes on some OSes, so just verify it doesn't crash
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
-    cmd.args(["0"]).assert().success();
+    cmd.args(["0", "--no-fail"]).assert().success();
 }
 
 #[test]
@@ -520,7 +529,7 @@ fn test_port_65535() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args(["65535"])
         .assert()
-        .success()
+        .code(2)
         .stdout("No service found using port 65535\n");
 }
 
@@ -541,7 +550,7 @@ fn test_kill_same_port_twice_rapidly() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 
     let _ = child.kill();
@@ -556,7 +565,7 @@ fn test_output_no_service_format_auto() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string()])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No service found using port {}\n", port));
 }
 
@@ -566,7 +575,7 @@ fn test_output_no_process_format() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "process"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No process found using port {}\n", port));
 }
 
@@ -576,7 +585,7 @@ fn test_output_no_container_format() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No container found using port {}\n", port));
 }
 
@@ -626,7 +635,9 @@ fn test_combined_flags() {
 fn test_verbose_output_succeeds() {
     let port = get_available_port();
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
-    cmd.args([&port.to_string(), "-vvv"]).assert().success();
+    cmd.args([&port.to_string(), "-vvv", "--no-fail"])
+        .assert()
+        .success();
 }
 
 #[test]
@@ -634,7 +645,7 @@ fn test_quiet_suppresses_stderr() {
     let port = get_available_port();
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
-        .args([&port.to_string(), "-q"])
+        .args([&port.to_string(), "-q", "--no-fail"])
         .assert()
         .success()
         .get_output()
@@ -652,7 +663,7 @@ fn test_very_quiet_suppresses_stderr() {
     let port = get_available_port();
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     let output = cmd
-        .args([&port.to_string(), "-qq"])
+        .args([&port.to_string(), "-qq", "--no-fail"])
         .assert()
         .success()
         .get_output()

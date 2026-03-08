@@ -3,6 +3,7 @@ use crate::unix::UnixProcess;
 use log::debug;
 use nix::unistd::Pid;
 use procfs::process::FDTarget;
+use std::collections::HashSet;
 use std::io::Error;
 
 /// Finds the inodes associated with the specified `port`.
@@ -77,6 +78,7 @@ fn find_target_inodes(port: u16) -> Vec<u64> {
 /// * `inodes` - Target inodes
 pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, Error> {
     let mut target_pids: Vec<UnixProcess> = vec![];
+    let mut seen_pids: HashSet<i32> = HashSet::new();
     let inodes = find_target_inodes(port);
 
     for inode in inodes {
@@ -88,6 +90,10 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, Error> {
                 Ok(p) => p,
                 Err(_) => continue,
             };
+
+            if seen_pids.contains(&process.pid) {
+                continue;
+            }
 
             if let Ok(fds) = process.fd() {
                 for fd in fds {
@@ -103,6 +109,7 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, Error> {
                                 Err(_) => continue,
                             };
                             debug!("Found process '{}' with PID {}", name, process.pid());
+                            seen_pids.insert(process.pid);
                             target_pids.push(UnixProcess::new(Pid::from_raw(process.pid), name));
                         }
                     }

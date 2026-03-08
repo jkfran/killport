@@ -79,6 +79,13 @@ pub struct KillPortArgs {
         help = "Perform a dry run without killing any processes or containers"
     )]
     pub dry_run: bool,
+
+    /// Do not exit with an error if no matching process or container is found.
+    #[arg(
+        long,
+        help = "Exit successfully even if no matching process or container is found"
+    )]
+    pub no_fail: bool,
 }
 
 fn parse_signal(arg: &str) -> Result<KillportSignal, std::io::Error> {
@@ -259,6 +266,18 @@ mod tests {
     fn test_cli_args_dry_run_absent() {
         let args = KillPortArgs::try_parse_from(["killport", "8080"]).unwrap();
         assert!(!args.dry_run);
+    }
+
+    #[test]
+    fn test_cli_args_no_fail_present() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080", "--no-fail"]).unwrap();
+        assert!(args.no_fail);
+    }
+
+    #[test]
+    fn test_cli_args_no_fail_absent() {
+        let args = KillPortArgs::try_parse_from(["killport", "8080"]).unwrap();
+        assert!(!args.no_fail);
     }
 
     #[test]

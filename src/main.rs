@@ -14,6 +14,13 @@ use killport::cli::{service_descriptors, KillPortArgs};
 use killport::killport::Killport;
 
 fn main() {
+    // Reset SIGPIPE to default behavior so piping output (e.g., `killport 8080 | head`)
+    // exits silently instead of panicking with a broken pipe error.
+    #[cfg(unix)]
+    unsafe {
+        nix::libc::signal(nix::libc::SIGPIPE, nix::libc::SIG_DFL);
+    }
+
     // Parse command-line arguments
     let args = KillPortArgs::parse();
 
@@ -54,11 +61,14 @@ fn main() {
     });
 
     // Attempt to kill processes listening on specified ports
+    let mut any_not_found = false;
+
     for port in args.ports {
         match killport.kill_service_by_port(port, args.signal.clone(), args.mode, args.dry_run) {
             Ok(killed_services) => {
                 if killed_services.is_empty() {
                     println!("No {} found using port {}", service_type_singular, port);
+                    any_not_found = true;
                 } else {
                     for (killable_type, name) in killed_services {
                         let action = if args.dry_run {
@@ -78,5 +88,9 @@ fn main() {
                 exit(1);
             }
         }
+    }
+
+    if any_not_found && !args.no_fail {
+        exit(2);
     }
 }
