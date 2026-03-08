@@ -4,22 +4,25 @@ permissions:
   contents: write
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main]
 
 jobs:
   check_release:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
     outputs:
       releaseExists: ${{ steps.check_release.outputs.releaseExists }}
+      version: ${{ steps.check_release.outputs.version }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Check if release exists
         id: check_release
-        uses: actions/github-script@v5
+        uses: actions/github-script@v7
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -29,29 +32,46 @@ jobs:
             const version = match ? match[1] : "";
             const tag = `v${version}`;
 
-            console.log("Extracted version: ", tag);
+            console.log("Extracted version:", tag);
+            core.setOutput("version", version);
 
             let releaseExists = false;
             try {
-              await github.rest.repos.getReleaseByTag({
-                owner,
-                repo,
-                tag,
-              });
+              await github.rest.repos.getReleaseByTag({ owner, repo, tag });
               releaseExists = true;
             } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
+              if (error.status !== 404) throw error;
             }
-            
-            console.log("Release exists: ", releaseExists);
+
+            console.log("Release exists:", releaseExists);
             core.setOutput("releaseExists", releaseExists);
-            return { releaseExists };
+
+  extract_changelog:
+    needs: check_release
+    if: needs.check_release.outputs.releaseExists == 'false'
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${{ needs.check_release.outputs.version }}"
+          # Extract content between [X.Y.Z] header and next ## header
+          CHANGELOG=$(awk "/^## \\[${VERSION}\\]/{found=1; next} /^## \\[/{if(found) exit} found{print}" CHANGELOG.md)
+          # If no versioned section found, try [Unreleased]
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG=$(awk '/^## \[Unreleased\]/{found=1; next} /^## \[/{if(found) exit} found{print}' CHANGELOG.md)
+          fi
+          echo "changelog<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
 
   release:
-    needs: check_release
-    if: ${{ needs.check_release.outputs.releaseExists == 'false' }}
+    needs: [check_release, extract_changelog]
+    if: needs.check_release.outputs.releaseExists == 'false'
     strategy:
       matrix:
         target:
@@ -67,68 +87,69 @@ jobs:
           - x86_64-pc-windows-gnu
     runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+        if: runner.os == 'Linux'
 
       - name: Install mingw-w64
         run: sudo apt install -y mingw-w64
         if: matrix.target == 'x86_64-pc-windows-gnu'
 
-      - name: Build target
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --release --target ${{ matrix.target }}
+      - name: Build (cross)
+        run: cross build --release --target ${{ matrix.target }}
+        if: runner.os == 'Linux'
 
-      - name: Package binaries
+      - name: Build (native)
+        run: cargo build --release --target ${{ matrix.target }}
+        if: runner.os != 'Linux'
+
+      - name: Package
         shell: bash
         run: |
-          cd target/${{ matrix.target }}/release
           short_target=$(echo "${{ matrix.target }}" | sed 's/-unknown//')
-          if [[ $short_target == *"windows"* ]]; then
-            tar czvf ../../../killport-${short_target}.tar.gz killport.exe
+          staging="killport-${short_target}"
+          mkdir -p "$staging/completions" "$staging/man"
+
+          # Binary
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            cp "target/${{ matrix.target }}/release/killport.exe" "$staging/"
           else
-            tar czvf ../../../killport-${short_target}.tar.gz killport
+            cp "target/${{ matrix.target }}/release/killport" "$staging/"
           fi
-          cd -
 
-      - name: Extract version from Cargo.toml
-        id: get_version
-        run: |
-          VERSION=$(grep '^version =' Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"' | tr -d "\n")
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Found version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Shell completions and man page from build.rs output
+          out_dir=$(find "target/${{ matrix.target }}/release/build/killport-"*/out -maxdepth 0 -type d 2>/dev/null | head -1)
+          if [ -n "$out_dir" ]; then
+            cp "$out_dir"/completions/* "$staging/completions/" 2>/dev/null || true
+            cp "$out_dir"/man/* "$staging/man/" 2>/dev/null || true
+          fi
 
-      - name: Create release and upload assets
-        uses: softprops/action-gh-release@v1
+          tar czvf "${staging}.tar.gz" "$staging"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
-          name: Release v${{ env.VERSION }}
-          files: 'killport*'
+          tag_name: v${{ needs.check_release.outputs.version }}
+          name: Release v${{ needs.check_release.outputs.version }}
+          body: ${{ needs.extract_changelog.outputs.changelog }}
+          files: 'killport-*.tar.gz'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    needs: release
+    needs: [check_release, release]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CRATES_IO }}
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo publish --token ${{ secrets.CRATES_IO }}
