@@ -197,7 +197,7 @@ fn test_no_container_on_port() {
     let mut cmd = assert_cmd::cargo_bin_cmd!("killport");
     cmd.args([&port.to_string(), "--mode", "container"])
         .assert()
-        .success()
+        .code(2)
         .stdout(format!("No container found using port {}\n", port));
 }
 
@@ -215,7 +215,7 @@ fn test_container_mode_ignores_native_process() {
     let output = cmd
         .args([&port.to_string(), "--mode", "container"])
         .assert()
-        .success();
+        .code(2);
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(
