@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-08
+
 ### Added
 - Shell completions for bash, zsh, and fish (generated at build time)
 - Man page generation at build time
@@ -17,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md
 
 ### Changed
-- Exit code 2 when no matching process or container is found (was 0)
+- **Breaking**: Exit code 2 when no matching process or container is found (was 0). Use `--no-fail` to restore previous behavior
 - Updated Cargo.toml keywords for better discoverability
 - Renamed Docker-specific types to generic container types (works with OrbStack, Podman, etc.)
 - Container runtime detection: skip native processes when containers own the port (fixes OrbStack crash)
@@ -105,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Snap package support
 - Basic CI/CD pipeline
 
-[Unreleased]: https://github.com/jkfran/killport/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jkfran/killport/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/jkfran/killport/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/jkfran/killport/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jkfran/killport/compare/v0.9.2...v1.0.0
 [0.9.2]: https://github.com/jkfran/killport/compare/v0.9.1...v0.9.2
