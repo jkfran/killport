@@ -86,25 +86,27 @@ impl<P: ProcessFinder, D: DockerOps> Killport<P, D> {
         let mut target_killables: Vec<Box<dyn Killable>> = vec![];
         let docker_present = mode != Mode::Process && self.docker_ops.is_docker_present()?;
 
-        if mode != Mode::Container {
-            let target_processes = self.process_finder.find_target_processes(port)?;
-
-            for process in target_processes {
-                // Check if the process name contains 'docker' and skip if in docker mode
-                if docker_present && process.get_name().to_lowercase().contains("docker") {
-                    continue;
-                }
-
-                target_killables.push(process);
-            }
-        }
-
-        // Add containers if Docker is present and mode is not set to only process
-        if docker_present && mode != Mode::Process {
+        // Find containers first — if any are found, native processes on the same port
+        // are port forwarders (docker-proxy, OrbStack Helper, etc.) and must be skipped.
+        let has_containers = if docker_present && mode != Mode::Process {
             let target_containers = self.docker_ops.find_target_containers(port)?;
-
+            let found = !target_containers.is_empty();
             for container in target_containers {
                 target_killables.push(Box::new(container));
+            }
+            found
+        } else {
+            false
+        };
+
+        if mode != Mode::Container {
+            // Skip native processes when containers own the port — those processes
+            // are port forwarders (docker-proxy, OrbStack Helper, Podman, etc.)
+            if !has_containers {
+                let target_processes = self.process_finder.find_target_processes(port)?;
+                for process in target_processes {
+                    target_killables.push(process);
+                }
             }
         }
 
@@ -270,132 +272,28 @@ mod tests {
     }
 
     #[test]
-    fn test_find_killables_mode_auto_with_docker_containers() {
+    fn test_find_killables_containers_found_skips_all_processes() {
+        // When containers are found on a port, ALL native processes are skipped
+        // because they are port forwarders (docker-proxy, OrbStack Helper, etc.)
         let finder = FnProcessFinder {
             finder: |_| {
-                let p: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
+                let p: Box<dyn Killable> = Box::new(MockKillable::process("OrbStack Helper"));
                 Ok(vec![p])
             },
         };
         let docker = docker_with_containers(vec!["nginx".to_string()]);
         let kp = Killport::new(finder, docker);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_type(), KillableType::Process);
-        assert_eq!(results[1].get_type(), KillableType::Container);
-        assert_eq!(results[1].get_name(), "nginx");
+        // Only the container — native process is a port forwarder and must be skipped
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].get_type(), KillableType::Container);
+        assert_eq!(results[0].get_name(), "nginx");
     }
 
     #[test]
-    fn test_find_killables_filters_docker_proxy_process() {
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
-                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
-                Ok(vec![p1, p2])
-            },
-        };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
-        let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // docker-proxy should be filtered out, my_app and nginx container remain
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_name(), "my_app");
-        assert_eq!(results[1].get_name(), "nginx");
-    }
-
-    #[test]
-    fn test_find_killables_filters_dockerd_daemon() {
-        // The Docker daemon process itself (dockerd) must be filtered out
-        // This was a real bug: killing dockerd instead of the container
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p1: Box<dyn Killable> = Box::new(MockKillable::process("dockerd"));
-                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
-                Ok(vec![p1, p2])
-            },
-        };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
-        let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // dockerd must be filtered out -- only my_app and the nginx container remain
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_name(), "my_app");
-        assert_eq!(results[1].get_name(), "nginx");
-        // Critically: dockerd must NOT be in the results
-        assert!(
-            !results.iter().any(|r| r.get_name() == "dockerd"),
-            "dockerd daemon must never be killed"
-        );
-    }
-
-    #[test]
-    fn test_find_killables_filters_docker_case_insensitive() {
-        // Docker filtering should be case-insensitive (Docker, DOCKER, docker)
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p1: Box<dyn Killable> = Box::new(MockKillable::process("Docker Desktop"));
-                let p2: Box<dyn Killable> = Box::new(MockKillable::process("com.docker.backend"));
-                let p3: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
-                Ok(vec![p1, p2, p3])
-            },
-        };
-        let docker = docker_with_containers(vec!["nginx".to_string()]);
-        let kp = Killport::new(finder, docker);
-        let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // Both Docker Desktop and com.docker.backend should be filtered
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_name(), "my_app");
-        assert_eq!(results[1].get_name(), "nginx");
-    }
-
-    #[test]
-    fn test_find_killables_no_docker_filter_when_docker_absent() {
-        // When Docker is NOT present, processes with "docker" in name should NOT be filtered
-        // (they're just regular processes in this context)
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
-                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
-                Ok(vec![p1, p2])
-            },
-        };
-        let kp = Killport::new(finder, no_docker());
-        let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // Both should be returned since Docker is not present
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_name(), "docker-proxy");
-        assert_eq!(results[1].get_name(), "my_app");
-    }
-
-    #[test]
-    fn test_find_killables_no_docker_filter_in_process_mode() {
-        // In Process mode, docker filtering should NOT apply even if the name contains "docker"
-        // because Docker is not checked at all in Process mode
-        let finder = FnProcessFinder {
-            finder: |_| {
-                let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
-                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
-                Ok(vec![p1, p2])
-            },
-        };
-        // Docker should never be checked in Process mode
-        let docker = FnDockerOps {
-            is_present: || panic!("Docker should not be checked in Process mode"),
-            find_containers: |_| panic!("Docker should not be checked in Process mode"),
-        };
-        let kp = Killport::new(finder, docker);
-        let results = kp.find_target_killables(8080, Mode::Process).unwrap();
-        // Both processes should be returned (no docker filtering in process mode)
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].get_name(), "docker-proxy");
-        assert_eq!(results[1].get_name(), "my_app");
-    }
-
-    #[test]
-    fn test_find_killables_docker_present_but_no_containers_on_port() {
-        // Docker is running but no containers on this port
-        // docker-proxy still gets filtered (correct: it's a docker process)
+    fn test_find_killables_no_containers_keeps_all_processes() {
+        // When no containers are found, all native processes are returned
+        // regardless of their name (docker-proxy, orbstack, etc.)
         let finder = FnProcessFinder {
             finder: |_| {
                 let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
@@ -406,14 +304,53 @@ mod tests {
         let docker = docker_with_containers(vec![]); // docker present, no containers
         let kp = Killport::new(finder, docker);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // docker-proxy is filtered (docker is present), only my_app remains
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].get_name(), "my_app");
+        // Both returned — no containers means these are real targets
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].get_name(), "docker-proxy");
+        assert_eq!(results[1].get_name(), "my_app");
     }
 
     #[test]
-    fn test_find_killables_only_docker_processes_all_filtered() {
-        // Edge case: all found processes are docker-related, and a container is the real target
+    fn test_find_killables_docker_absent_returns_all_processes() {
+        // When Docker is NOT present, all processes are returned
+        let finder = FnProcessFinder {
+            finder: |_| {
+                let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
+                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
+                Ok(vec![p1, p2])
+            },
+        };
+        let kp = Killport::new(finder, no_docker());
+        let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].get_name(), "docker-proxy");
+        assert_eq!(results[1].get_name(), "my_app");
+    }
+
+    #[test]
+    fn test_find_killables_process_mode_skips_docker() {
+        // In Process mode, Docker is never checked — all processes returned
+        let finder = FnProcessFinder {
+            finder: |_| {
+                let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
+                let p2: Box<dyn Killable> = Box::new(MockKillable::process("my_app"));
+                Ok(vec![p1, p2])
+            },
+        };
+        let docker = FnDockerOps {
+            is_present: || panic!("Docker should not be checked in Process mode"),
+            find_containers: |_| panic!("Docker should not be checked in Process mode"),
+        };
+        let kp = Killport::new(finder, docker);
+        let results = kp.find_target_killables(8080, Mode::Process).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].get_name(), "docker-proxy");
+        assert_eq!(results[1].get_name(), "my_app");
+    }
+
+    #[test]
+    fn test_find_killables_multiple_containers_skips_processes() {
+        // Multiple port forwarder processes should all be skipped
         let finder = FnProcessFinder {
             finder: |_| {
                 let p1: Box<dyn Killable> = Box::new(MockKillable::process("docker-proxy"));
@@ -424,7 +361,6 @@ mod tests {
         let docker = docker_with_containers(vec!["nginx".to_string()]);
         let kp = Killport::new(finder, docker);
         let results = kp.find_target_killables(8080, Mode::Auto).unwrap();
-        // All native processes filtered, only the container remains
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].get_type(), KillableType::Container);
         assert_eq!(results[0].get_name(), "nginx");
@@ -604,7 +540,8 @@ mod tests {
     }
 
     #[test]
-    fn test_kill_service_multiple_targets() {
+    fn test_kill_service_multiple_targets_no_containers() {
+        // Multiple processes, no containers — all get killed
         let finder = FnProcessFinder {
             finder: |_| {
                 let p1: Box<dyn Killable> = Box::new(MockKillable::process("app1"));
@@ -612,14 +549,31 @@ mod tests {
                 Ok(vec![p1, p2])
             },
         };
+        let kp = Killport::new(finder, no_docker());
+        let results = kp
+            .kill_service_by_port(8080, signal(), Mode::Auto, true)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].1, "app1");
+        assert_eq!(results[1].1, "app2");
+    }
+
+    #[test]
+    fn test_kill_service_container_found_skips_processes() {
+        // When a container is found, only the container is killed (processes are port forwarders)
+        let finder = FnProcessFinder {
+            finder: |_| {
+                let p: Box<dyn Killable> = Box::new(MockKillable::process("OrbStack Helper"));
+                Ok(vec![p])
+            },
+        };
         let docker = docker_with_containers(vec!["nginx".to_string()]);
         let kp = Killport::new(finder, docker);
         let results = kp
             .kill_service_by_port(8080, signal(), Mode::Auto, true)
             .unwrap();
-        assert_eq!(results.len(), 3);
-        assert_eq!(results[0].1, "app1");
-        assert_eq!(results[1].1, "app2");
-        assert_eq!(results[2].1, "nginx");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, KillableType::Container);
+        assert_eq!(results[0].1, "nginx");
     }
 }

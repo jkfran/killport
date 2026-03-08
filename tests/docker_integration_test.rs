@@ -272,8 +272,8 @@ fn test_kill_container_with_signal() {
 #[test]
 #[ignore]
 fn test_auto_mode_docker_proxy_not_in_output() {
-    // In auto mode with a container, docker-proxy processes should be filtered
-    // and the container should be the one killed
+    // In auto mode with a container, port forwarder processes (docker-proxy,
+    // OrbStack Helper, etc.) should be skipped — only the container is killed
     let port = get_available_port();
     let container_id = start_docker_container(port);
 
