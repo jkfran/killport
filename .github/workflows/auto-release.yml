@@ -1,0 +1,181 @@
+name: Auto Release
+
+# Monthly automated minor release. Refreshes transitive dependencies with
+# `cargo update`, and if anything changed since the last release (Dependabot
+# merges and/or lockfile updates), bumps the minor version, updates the
+# changelog, and pushes to main. The push is authenticated with a deploy key
+# (AUTO_RELEASE_DEPLOY_KEY secret) so it triggers the normal CI workflow,
+# whose success then triggers the Release workflow (binaries + crates.io).
+#
+# Nothing is released unless the full CI suite passes on the bump commit.
+
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 06:00 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Plan the release without pushing anything"
+        type: boolean
+        default: false
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  auto-release:
+    name: Prepare automated release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.AUTO_RELEASE_DEPLOY_KEY }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: auto-release
+
+      - name: Refresh dependencies (cargo update)
+        id: update
+        run: |
+          set -euo pipefail
+          cargo update --color never 2>&1 | tee /tmp/cargo-update.log
+          if git diff --quiet Cargo.lock; then
+            echo "lock_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "lock_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide whether a release is needed
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOCK_CHANGED: ${{ steps.update.outputs.lock_changed }}
+        run: |
+          set -euo pipefail
+          CURRENT=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          # If the version in Cargo.toml has no published release yet, a
+          # manual release is in flight; don't bump on top of it.
+          if ! gh release view "v$CURRENT" --json tagName > /dev/null 2>&1; then
+            echo "Version $CURRENT has no published release yet; skipping."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NEW_COMMITS=0
+          if [ -n "$LAST_TAG" ]; then
+            NEW_COMMITS=$(git rev-list "$LAST_TAG"..HEAD --count)
+          fi
+
+          if [ "$LOCK_CHANGED" = "false" ] && [ "$NEW_COMMITS" -eq 0 ]; then
+            echo "No dependency changes and no commits since $LAST_TAG; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS=. read -r MAJOR MINOR _PATCH <<< "$CURRENT"
+          NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+          {
+            echo "release=true"
+            echo "current=$CURRENT"
+            echo "version=$NEW_VERSION"
+            echo "last_tag=$LAST_TAG"
+          } >> "$GITHUB_OUTPUT"
+          echo "Will release v$NEW_VERSION (current v$CURRENT, $NEW_COMMITS commits since ${LAST_TAG:-the beginning})"
+
+      - name: Verify formatting, lints, and tests
+        if: steps.decide.outputs.release == 'true'
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --all-features -- -D warnings
+          cargo test
+
+      - name: Bump version and update changelog
+        if: steps.decide.outputs.release == 'true'
+        env:
+          CURRENT: ${{ steps.decide.outputs.current }}
+          NEW_VERSION: ${{ steps.decide.outputs.version }}
+          LAST_TAG: ${{ steps.decide.outputs.last_tag }}
+        run: |
+          set -euo pipefail
+
+          sed -i "0,/^version = \"$CURRENT\"/s//version = \"$NEW_VERSION\"/" Cargo.toml
+          grep -q "^version = \"$NEW_VERSION\"" Cargo.toml
+          cargo update --workspace # sync killport's own version in Cargo.lock
+
+          # Changelog entry: Dependabot merges since the last release, plus
+          # transitive updates from this run's `cargo update` (capped).
+          {
+            echo "### Dependencies"
+            echo ""
+            if [ -n "$LAST_TAG" ]; then
+              git log "$LAST_TAG"..HEAD --pretty='%s' \
+                | grep -iE '^(build|chore)\(deps\)|^bump ' | sed 's/^/- /' || true
+            fi
+            grep -E '^[[:space:]]+(Updating|Adding|Removing) ' /tmp/cargo-update.log \
+              | grep -v 'crates.io index' | sed -E 's/^[[:space:]]+/- /' | head -40 || true
+            TOTAL=$(grep -E '^[[:space:]]+(Updating|Adding|Removing) ' /tmp/cargo-update.log | grep -vc 'crates.io index' || true)
+            if [ "${TOTAL:-0}" -gt 40 ]; then
+              echo "- ...and $((TOTAL - 40)) more transitive updates"
+            fi
+          } > /tmp/section.md
+
+          awk -v ver="$NEW_VERSION" -v date="$(date -u +%Y-%m-%d)" '
+            /^## \[Unreleased\]/ {
+              print
+              print ""
+              print "## [" ver "] - " date
+              print ""
+              while ((getline line < "/tmp/section.md") > 0) print line
+              next
+            }
+            { print }
+          ' CHANGELOG.md > /tmp/CHANGELOG.new && mv /tmp/CHANGELOG.new CHANGELOG.md
+
+      - name: Commit and push release
+        if: steps.decide.outputs.release == 'true' && inputs.dry_run != true
+        env:
+          NEW_VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "Release v$NEW_VERSION: automated dependency refresh"
+          git push origin main
+          {
+            echo "## Released v$NEW_VERSION"
+            echo ""
+            echo "Pushed to main. CI must pass before the Release workflow publishes it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dry run summary
+        if: steps.decide.outputs.release == 'true' && inputs.dry_run == true
+        env:
+          NEW_VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          {
+            echo "## Dry run: would release v$NEW_VERSION"
+            echo ""
+            echo '```'
+            git --no-pager diff --stat
+            echo '```'
+            echo ""
+            echo "### Changelog entry"
+            cat /tmp/section.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager diff
+
+      - name: Nothing to release
+        if: steps.decide.outputs.release != 'true'
+        run: echo "## No release needed this cycle" >> "$GITHUB_STEP_SUMMARY"

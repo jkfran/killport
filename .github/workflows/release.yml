@@ -19,6 +19,9 @@ jobs:
       version: ${{ steps.check_release.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build exactly the commit CI validated, not whatever main moved to.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Check if release exists
         id: check_release
@@ -54,6 +57,9 @@ jobs:
       changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build exactly the commit CI validated, not whatever main moved to.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Extract changelog for version
         id: changelog
@@ -88,6 +94,9 @@ jobs:
     runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build exactly the commit CI validated, not whatever main moved to.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -141,6 +150,7 @@ jobs:
         with:
           tag_name: v${{ needs.check_release.outputs.version }}
           name: Release v${{ needs.check_release.outputs.version }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
           body: ${{ needs.extract_changelog.outputs.changelog }}
           files: 'killport-*.tar.gz'
         env:
@@ -151,5 +161,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build exactly the commit CI validated, not whatever main moved to.
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo publish --token ${{ secrets.CRATES_IO }}

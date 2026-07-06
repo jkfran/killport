@@ -118,6 +118,11 @@ jobs:
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    # Dependabot-triggered runs get a read-only token by default; audit-check
+    # needs checks: write to report its results.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2
@@ -187,3 +192,25 @@ jobs:
       - run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
+
+  # ──────────────────────────────────────────────
+  # Job 9: Aggregate gate — the single required status check.
+  # Branch ruleset and Dependabot auto-merge key off this job,
+  # so it must fail unless every job above succeeded.
+  # ──────────────────────────────────────────────
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [fmt, clippy, test, docker-tests, coverage, audit, cross-build, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that all jobs succeeded
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "Job results: $results"
+          for result in $results; do
+            if [ "$result" != "success" ]; then
+              echo "A required job finished with result: $result"
+              exit 1
+            fi
+          done

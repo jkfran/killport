@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # Rust dependencies: one grouped PR per week for minor/patch bumps,
+  # individual PRs for major bumps. All are auto-merged once CI passes
+  # (see .github/workflows/dependabot-auto-merge.yml).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    groups:
+      cargo-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "build(deps)"
+    labels:
+      - dependencies
+
+  # Keep the GitHub Actions used in workflows up to date, one grouped PR.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "build(ci)"
+    labels:
+      - dependencies
