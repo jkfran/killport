@@ -41,7 +41,7 @@ features = [
 clap = { version = "4.5.60", features = ["derive"] }
 clap-verbosity-flag = "3.0.4"
 clap_complete = "4.5.66"
-clap_mangen = "0.2.31"
+clap_mangen = "0.3.0"
 
 [dev-dependencies]
 assert_cmd = "2.1.2"
