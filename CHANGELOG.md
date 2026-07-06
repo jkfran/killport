@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Windows: no longer attempts to kill PID 0 (`[System Process]`, owner of TIME_WAIT entries) or PID 4 (System), which failed with error 0x57
+- macOS: processes holding more than 1024 file descriptors could have their listening sockets missed; the fd list is now sized to the process's actual fd count
+- macOS: a process exiting mid-scan no longer aborts the whole port lookup
+
 ## [2.0.1] - 2026-07-06
 
 ### Dependencies
