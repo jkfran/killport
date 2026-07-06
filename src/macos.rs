@@ -1,9 +1,10 @@
 use crate::unix::UnixProcess;
 
+use libproc::libproc::bsd_info::BSDInfo;
 use libproc::libproc::file_info::pidfdinfo;
 use libproc::libproc::file_info::{ListFDs, ProcFDType};
 use libproc::libproc::net_info::{SocketFDInfo, SocketInfoKind};
-use libproc::libproc::proc_pid::{listpidinfo, name};
+use libproc::libproc::proc_pid::{listpidinfo, name, pidinfo};
 use libproc::processes::{pids_by_type, ProcFilter};
 use log::debug;
 use nix::unistd::Pid;
@@ -27,7 +28,14 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
             if seen_pids.contains(&pid) {
                 continue;
             }
-            let fds = listpidinfo::<ListFDs>(pid, 1024);
+            // Size the fd list to the process's actual fd count — a fixed cap
+            // silently misses sockets in fd-heavy processes. Small headroom
+            // covers fds opened between the two calls; fall back to a generous
+            // default when the count is unavailable.
+            let max_fds = pidinfo::<BSDInfo>(pid, 0)
+                .map(|info| info.pbi_nfiles as usize + 32)
+                .unwrap_or(4096);
+            let fds = listpidinfo::<ListFDs>(pid, max_fds);
             if let Ok(fds) = fds {
                 for fd in fds {
                     if let ProcFDType::Socket = fd.proc_fdtype.into() {
@@ -48,7 +56,19 @@ pub fn find_target_processes(port: u16) -> Result<Vec<UnixProcess>, io::Error> {
                                         }
                                     };
                                     if u16::from_be(local_port) == port {
-                                        let process_name = name(pid).map_err(io::Error::other)?;
+                                        // The process can exit between socket
+                                        // enumeration and the name lookup; a
+                                        // vanished process must not fail the scan.
+                                        let process_name = match name(pid) {
+                                            Ok(process_name) => process_name,
+                                            Err(e) => {
+                                                debug!(
+                                                    "Skipping PID {}: name lookup failed ({})",
+                                                    pid, e
+                                                );
+                                                continue 'next_process;
+                                            }
+                                        };
                                         debug!(
                                             "Found process '{}' with PID {} listening on port {}",
                                             process_name, pid, port
@@ -233,5 +253,62 @@ mod tests {
         );
 
         drop(socket);
+    }
+
+    #[test]
+    fn test_find_target_processes_beyond_1024_fds() {
+        // Regression test: the fd list used to be capped at 1024 entries, so a
+        // socket whose fd index landed past that was silently missed.
+        const TARGET_FDS: libc::rlim_t = 2200;
+
+        unsafe {
+            let mut lim = libc::rlimit {
+                rlim_cur: 0,
+                rlim_max: 0,
+            };
+            if libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) != 0 {
+                eprintln!("skipping: getrlimit failed");
+                return;
+            }
+            if lim.rlim_cur < TARGET_FDS {
+                let raised = libc::rlimit {
+                    rlim_cur: TARGET_FDS.min(lim.rlim_max),
+                    rlim_max: lim.rlim_max,
+                };
+                if libc::setrlimit(libc::RLIMIT_NOFILE, &raised) != 0
+                    || raised.rlim_cur < TARGET_FDS
+                {
+                    eprintln!("skipping: cannot raise RLIMIT_NOFILE to {}", TARGET_FDS);
+                    return;
+                }
+            }
+        }
+
+        // Hold enough fds open that the listener bound afterwards gets an fd
+        // index well past the old 1024 cap.
+        let mut hoard = Vec::new();
+        for _ in 0..1500 {
+            match std::fs::File::open("/dev/null") {
+                Ok(f) => hoard.push(f),
+                Err(_) => break,
+            }
+        }
+        if hoard.len() < 1200 {
+            eprintln!("skipping: could only open {} fds", hoard.len());
+            return;
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let processes = find_target_processes(port).unwrap();
+        assert!(
+            !processes.is_empty(),
+            "Expected to find listener on port {} even with fd index > 1024",
+            port
+        );
+
+        drop(listener);
+        drop(hoard);
     }
 }

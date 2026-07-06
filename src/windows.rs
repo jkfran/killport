@@ -413,8 +413,12 @@ macro_rules! impl_get_processes {
                 .for_each(|element| {
                     // Convert the port value
                     let local_port: u16 = (element.dwLocalPort as u16).to_be();
-                    if local_port == port {
-                        pids.insert(element.dwOwningPid);
+                    // PID 0 ([System Process]) owns TIME_WAIT rows and PID 4
+                    // (System) owns kernel sockets; neither can nor should be
+                    // terminated, and opening PID 0 fails with 0x57.
+                    let pid = element.dwOwningPid;
+                    if local_port == port && pid != 0 && pid != 4 {
+                        pids.insert(pid);
                     }
                 });
         }
