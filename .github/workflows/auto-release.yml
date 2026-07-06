@@ -31,7 +31,7 @@ jobs:
     name: Prepare automated release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.AUTO_RELEASE_DEPLOY_KEY }}
           fetch-depth: 0

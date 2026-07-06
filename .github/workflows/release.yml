@@ -18,14 +18,14 @@ jobs:
       releaseExists: ${{ steps.check_release.outputs.releaseExists }}
       version: ${{ steps.check_release.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Build exactly the commit CI validated, not whatever main moved to.
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Check if release exists
         id: check_release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -56,7 +56,7 @@ jobs:
     outputs:
       changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Build exactly the commit CI validated, not whatever main moved to.
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -93,7 +93,7 @@ jobs:
           - x86_64-pc-windows-gnu
     runs-on: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-apple-darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Build exactly the commit CI validated, not whatever main moved to.
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -146,7 +146,7 @@ jobs:
           tar czvf "${staging}.tar.gz" "$staging"
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.check_release.outputs.version }}
           name: Release v${{ needs.check_release.outputs.version }}
@@ -160,7 +160,7 @@ jobs:
     needs: [check_release, release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Build exactly the commit CI validated, not whatever main moved to.
           ref: ${{ github.event.workflow_run.head_sha }}
