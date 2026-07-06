@@ -194,14 +194,32 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   # ──────────────────────────────────────────────
-  # Job 9: Aggregate gate — the single required status check.
+  # Job 9: MSRV — the rust-version claimed in Cargo.toml must compile.
+  # Gates dependency updates that would silently raise the floor.
+  # Keep the toolchain here in sync with rust-version in Cargo.toml.
+  # ──────────────────────────────────────────────
+  msrv:
+    name: MSRV (1.86)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv
+      - run: cargo check --all-targets --locked
+
+  # ──────────────────────────────────────────────
+  # Job 10: Aggregate gate — the single required status check.
   # Branch ruleset and Dependabot auto-merge key off this job,
   # so it must fail unless every job above succeeded.
   # ──────────────────────────────────────────────
   ci-ok:
     name: CI OK
     if: always()
-    needs: [fmt, clippy, test, docker-tests, coverage, audit, cross-build, docs]
+    needs: [fmt, clippy, test, docker-tests, coverage, audit, cross-build, docs, msrv]
     runs-on: ubuntu-latest
     steps:
       - name: Check that all jobs succeeded

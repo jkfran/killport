@@ -60,8 +60,10 @@ fn main() {
         exit(1);
     });
 
-    // Attempt to kill processes listening on specified ports
+    // Attempt to kill processes listening on specified ports. A failing
+    // port must not prevent the remaining ports from being processed.
     let mut any_not_found = false;
+    let mut any_error = false;
 
     for port in args.ports {
         match killport.kill_service_by_port(port, args.signal.clone(), args.mode, args.dry_run) {
@@ -84,12 +86,17 @@ fn main() {
                 }
             }
             Err(err) => {
-                error!("{}", err);
-                exit(1);
+                error!("Port {}: {}", port, err);
+                any_error = true;
             }
         }
     }
 
+    // Exit with the worst outcome across all ports:
+    // error (1) > nothing found (2, unless --no-fail) > success (0).
+    if any_error {
+        exit(1);
+    }
     if any_not_found && !args.no_fail {
         exit(2);
     }

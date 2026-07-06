@@ -3,7 +3,8 @@ name = "killport"
 version = "2.0.1"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
-rust-version = "1.74"
+# Actual floor of the dependency tree (icu crates); enforced by the MSRV CI job.
+rust-version = "1.86"
 license = "MIT"
 description = "A command-line tool to easily kill processes and containers running on a specified port."
 readme = "README.md"
