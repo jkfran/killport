@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.1.0] - 2026-07-06
+## [2.0.1] - 2026-07-06
 
 ### Dependencies
 
+- build(deps): bump bollard from 0.20.2 to 0.21.0 (#48)
 - build(deps): bump clap_mangen from 0.2.31 to 0.3.0 (#49)
 - build(deps): bump the cargo-minor-patch group with 10 updates (#47)
 - Removing android-tzdata v0.1.1
@@ -20,7 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removing bitflags v2.11.0
 - Adding bitflags v1.3.2
 - Adding bitflags v2.13.0
-- Updating bollard v0.20.1 -> v0.20.2 (available: v0.21.0)
 - Updating bstr v1.9.1 -> v1.12.3
 - Updating bumpalo v3.16.0 -> v3.20.3
 - Updating bytes v1.11.1 -> v1.12.0

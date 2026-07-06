@@ -1,8 +1,8 @@
 name: Auto Release
 
-# Monthly automated minor release. Refreshes transitive dependencies with
+# Monthly automated patch release. Refreshes transitive dependencies with
 # `cargo update`, and if anything changed since the last release (Dependabot
-# merges and/or lockfile updates), bumps the minor version, updates the
+# merges and/or lockfile updates), bumps the patch version, updates the
 # changelog, and pushes to main. The push is authenticated with a deploy key
 # (AUTO_RELEASE_DEPLOY_KEY secret) so it triggers the normal CI workflow,
 # whose success then triggers the Release workflow (binaries + crates.io).
@@ -84,8 +84,8 @@ jobs:
             exit 0
           fi
 
-          IFS=. read -r MAJOR MINOR _PATCH <<< "$CURRENT"
-          NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
           {
             echo "release=true"
             echo "current=$CURRENT"
