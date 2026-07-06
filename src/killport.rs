@@ -19,6 +19,7 @@ pub trait ProcessFinder {
 pub trait ContainerOps {
     fn is_available(&self) -> Result<bool, Error>;
     fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error>;
+    fn kill_container(&self, name: &str, signal: KillportSignal) -> Result<bool, Error>;
 }
 
 /// Real implementation of ProcessFinder that calls the platform-specific functions.
@@ -54,6 +55,11 @@ impl ContainerOps for RealContainerOps {
 
     fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error> {
         Container::find_target_containers(&self.rt, port)
+    }
+
+    fn kill_container(&self, name: &str, signal: KillportSignal) -> Result<bool, Error> {
+        Container::kill(&self.rt, name, signal)?;
+        Ok(true)
     }
 }
 
@@ -124,7 +130,16 @@ impl<P: ProcessFinder, D: ContainerOps> Killport<P, D> {
         let target_killables = self.find_target_killables(port, mode)?;
 
         for killable in target_killables {
-            let killed = dry_run || killable.kill(signal.clone())?;
+            let killed = if dry_run {
+                true
+            } else if killable.get_type() == KillableType::Container {
+                // Containers are killed through ContainerOps so the shared
+                // tokio runtime is reused instead of building one per kill.
+                self.container_ops
+                    .kill_container(&killable.get_name(), signal.clone())?
+            } else {
+                killable.kill(signal.clone())?
+            };
             if killed {
                 results.push((killable.get_type(), killable.get_name()));
             }
@@ -197,13 +212,18 @@ mod tests {
     struct FnContainerOps<
         P: Fn() -> Result<bool, Error>,
         C: Fn(u16) -> Result<Vec<Container>, Error>,
+        K: Fn(&str, KillportSignal) -> Result<bool, Error>,
     > {
         is_present: P,
         find_containers: C,
+        kill_container: K,
     }
 
-    impl<P: Fn() -> Result<bool, Error>, C: Fn(u16) -> Result<Vec<Container>, Error>> ContainerOps
-        for FnContainerOps<P, C>
+    impl<
+            P: Fn() -> Result<bool, Error>,
+            C: Fn(u16) -> Result<Vec<Container>, Error>,
+            K: Fn(&str, KillportSignal) -> Result<bool, Error>,
+        > ContainerOps for FnContainerOps<P, C, K>
     {
         fn is_available(&self) -> Result<bool, Error> {
             (self.is_present)()
@@ -212,16 +232,22 @@ mod tests {
         fn find_target_containers(&self, port: u16) -> Result<Vec<Container>, Error> {
             (self.find_containers)(port)
         }
+
+        fn kill_container(&self, name: &str, signal: KillportSignal) -> Result<bool, Error> {
+            (self.kill_container)(name, signal)
+        }
     }
 
     #[allow(clippy::type_complexity)]
     fn no_containers() -> FnContainerOps<
         impl Fn() -> Result<bool, Error>,
         impl Fn(u16) -> Result<Vec<Container>, Error>,
+        impl Fn(&str, KillportSignal) -> Result<bool, Error>,
     > {
         FnContainerOps {
             is_present: || Ok(false),
             find_containers: |_| Ok(vec![]),
+            kill_container: |_, _| Ok(true),
         }
     }
 
@@ -231,6 +257,7 @@ mod tests {
     ) -> FnContainerOps<
         impl Fn() -> Result<bool, Error>,
         impl Fn(u16) -> Result<Vec<Container>, Error>,
+        impl Fn(&str, KillportSignal) -> Result<bool, Error>,
     > {
         FnContainerOps {
             is_present: || Ok(true),
@@ -240,6 +267,7 @@ mod tests {
                     .map(|n| Container { name: n.clone() })
                     .collect())
             },
+            kill_container: |_, _| Ok(true),
         }
     }
 
@@ -340,6 +368,9 @@ mod tests {
         let ct = FnContainerOps {
             is_present: || panic!("Container runtime should not be checked in Process mode"),
             find_containers: |_| panic!("Container runtime should not be checked in Process mode"),
+            kill_container: |_, _| {
+                panic!("Container runtime should not be checked in Process mode")
+            },
         };
         let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Process).unwrap();
@@ -378,6 +409,9 @@ mod tests {
         let ct = FnContainerOps {
             is_present: || panic!("Container runtime should not be checked in Process mode"),
             find_containers: |_| panic!("Container runtime should not be checked in Process mode"),
+            kill_container: |_, _| {
+                panic!("Container runtime should not be checked in Process mode")
+            },
         };
         let kp = Killport::new(finder, ct);
         let results = kp.find_target_killables(8080, Mode::Process).unwrap();
@@ -433,6 +467,7 @@ mod tests {
         let ct = FnContainerOps {
             is_present: || Err(Error::other("container runtime error")),
             find_containers: |_| Ok(vec![]),
+            kill_container: |_, _| Ok(true),
         };
         let kp = Killport::new(finder, ct);
         let result = kp.find_target_killables(8080, Mode::Auto);
@@ -447,6 +482,7 @@ mod tests {
         let ct = FnContainerOps {
             is_present: || Ok(true),
             find_containers: |_| Err(Error::other("container error")),
+            kill_container: |_, _| Ok(true),
         };
         let kp = Killport::new(finder, ct);
         let result = kp.find_target_killables(8080, Mode::Auto);
@@ -575,5 +611,52 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, KillableType::Container);
         assert_eq!(results[0].1, "nginx");
+    }
+
+    #[test]
+    fn test_kill_service_container_killed_via_ops() {
+        // Container kills must route through ContainerOps (shared runtime),
+        // not through the standalone Killable impl.
+        let finder = FnProcessFinder {
+            finder: |_| Ok(vec![]),
+        };
+        let ct = FnContainerOps {
+            is_present: || Ok(true),
+            find_containers: |_| {
+                Ok(vec![Container {
+                    name: "nginx".to_string(),
+                }])
+            },
+            kill_container: |name, _| {
+                assert_eq!(name, "nginx");
+                Ok(true)
+            },
+        };
+        let kp = Killport::new(finder, ct);
+        let results = kp
+            .kill_service_by_port(8080, signal(), Mode::Container, false)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, KillableType::Container);
+        assert_eq!(results[0].1, "nginx");
+    }
+
+    #[test]
+    fn test_kill_service_container_kill_error_propagates() {
+        let finder = FnProcessFinder {
+            finder: |_| Ok(vec![]),
+        };
+        let ct = FnContainerOps {
+            is_present: || Ok(true),
+            find_containers: |_| {
+                Ok(vec![Container {
+                    name: "nginx".to_string(),
+                }])
+            },
+            kill_container: |_, _| Err(Error::other("docker kill failed")),
+        };
+        let kp = Killport::new(finder, ct);
+        let result = kp.kill_service_by_port(8080, signal(), Mode::Container, false);
+        assert!(result.is_err());
     }
 }

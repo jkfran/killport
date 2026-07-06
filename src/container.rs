@@ -20,8 +20,10 @@ impl Container {
     /// * `signal` - A enum value representing the signal type.
     pub fn kill(rt: &Runtime, name: &str, signal: KillportSignal) -> Result<(), Error> {
         rt.block_on(async {
+            // connect_with_local_defaults honors DOCKER_HOST, so custom
+            // sockets (colima, podman, rancher desktop) are found too.
             let docker =
-                Docker::connect_with_socket_defaults().map_err(|e| Error::other(e.to_string()))?;
+                Docker::connect_with_local_defaults().map_err(|e| Error::other(e.to_string()))?;
 
             let options = KillContainerOptions {
                 signal: signal.to_string(),
@@ -37,7 +39,7 @@ impl Container {
     /// Finds the containers associated with the specified `port`.
     pub fn find_target_containers(rt: &Runtime, port: u16) -> Result<Vec<Self>, Error> {
         rt.block_on(async {
-            let docker = match Docker::connect_with_socket_defaults() {
+            let docker = match Docker::connect_with_local_defaults() {
                 Ok(d) => d,
                 Err(e) => {
                     debug!("Container runtime socket not available: {}", e);
@@ -75,7 +77,7 @@ impl Container {
 
     pub fn is_available(rt: &Runtime) -> Result<bool, Error> {
         rt.block_on(async {
-            let docker = match Docker::connect_with_socket_defaults() {
+            let docker = match Docker::connect_with_local_defaults() {
                 Ok(d) => d,
                 Err(e) => {
                     debug!("Container runtime socket not available: {}", e);

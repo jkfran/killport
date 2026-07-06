@@ -29,6 +29,10 @@ impl Display for KillableType {
 }
 
 impl Killable for Container {
+    /// Kills the container on a freshly-built runtime. The orchestrator
+    /// (`Killport::kill_service_by_port`) routes container kills through
+    /// `ContainerOps` instead, reusing the shared runtime; this impl remains
+    /// for standalone `Killable` use.
     fn kill(&self, signal: KillportSignal) -> Result<bool, Error> {
         let rt = Builder::new_current_thread().enable_all().build()?;
         Self::kill(&rt, &self.name, signal)?;

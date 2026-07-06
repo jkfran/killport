@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows: no longer attempts to kill PID 0 (`[System Process]`, owner of TIME_WAIT entries) or PID 4 (System), which failed with error 0x57
 - macOS: processes holding more than 1024 file descriptors could have their listening sockets missed; the fd list is now sized to the process's actual fd count
 - macOS: a process exiting mid-scan no longer aborts the whole port lookup
+- Linux: port lookup scans `/proc` once for all matching socket inodes instead of once per inode, and no longer returns duplicate entries when several fds match the port
+- Linux: processes with unreadable command lines fall back to the short process name instead of being skipped
+- Container runtime detection and kills honor `DOCKER_HOST` (colima, podman, remote docker)
+- Container kills reuse the shared tokio runtime instead of building a new one per container
 
 ## [2.0.1] - 2026-07-06
 
