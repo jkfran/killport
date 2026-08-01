@@ -1,6 +1,6 @@
 [package]
 name = "killport"
-version = "2.0.1"
+version = "2.0.2"
 authors = ["Francisco Jimenez Cabrera <jkfran@gmail.com>"]
 edition = "2021"
 # Actual floor of the dependency tree (icu crates); enforced by the MSRV CI job.

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-08-01
+
+### Dependencies
+
+- build(deps): bump the cargo-minor-patch group with 3 updates (#52)
+- build(deps): bump the cargo-minor-patch group with 3 updates (#51)
+- build(deps): bump regex in the cargo-minor-patch group (#50)
+- Updating bitflags v2.13.0 -> v2.13.1
+- Updating bstr v1.12.3 -> v1.13.0
+- Updating bytes v1.12.0 -> v1.12.1
+- Updating cc v1.2.66 -> v1.4.0
+- Updating cfg_aliases v0.2.1 -> v0.2.2
+- Updating clang-sys v1.8.1 -> v1.9.1
+- Updating clap v4.6.4 -> v4.6.5
+- Updating clap_builder v4.6.2 -> v4.6.5
+- Updating clap_complete v4.6.7 -> v4.6.8
+- Updating displaydoc v0.2.6 -> v0.2.7
+- Updating either v1.16.0 -> v1.17.0
+- Updating fastrand v2.4.1 -> v2.5.0
+- Updating futures-channel v0.3.32 -> v0.3.33
+- Updating futures-core v0.3.32 -> v0.3.33
+- Updating futures-macro v0.3.32 -> v0.3.33
+- Updating futures-sink v0.3.32 -> v0.3.33
+- Updating futures-task v0.3.32 -> v0.3.33
+- Updating futures-util v0.3.32 -> v0.3.33
+- Updating glob v0.3.3 -> v0.3.4
+- Updating http v1.4.2 -> v1.5.0
+- Updating http-body v1.0.1 -> v1.1.0
+- Updating http-body-util v0.1.3 -> v0.1.4
+- Updating hyper v1.10.1 -> v1.11.0
+- Updating hyper-named-pipe v0.1.0 -> v0.1.1
+- Updating jiff v0.2.31 -> v0.2.35
+- Adding jiff-core v0.1.0
+- Updating jiff-static v0.2.31 -> v0.2.35
+- Updating memchr v2.8.2 -> v2.8.3
+- Updating mio v1.2.1 -> v1.2.2
+- Updating portable-atomic v1.13.1 -> v1.14.0
+- Updating proc-macro2 v1.0.106 -> v1.0.107
+- Updating quote v1.0.46 -> v1.0.47
+- Updating rustversion v1.0.22 -> v1.0.23
+- Updating serde v1.0.228 -> v1.0.229
+- Updating serde_core v1.0.228 -> v1.0.229
+- Updating serde_derive v1.0.228 -> v1.0.229
+- Updating serde_json v1.0.150 -> v1.0.151
+- Updating serde_repr v0.1.20 -> v0.1.21
+- Updating simd-adler32 v0.3.9 -> v0.3.10
+- Updating socket2 v0.6.4 -> v0.6.5
+- ...and 5 more transitive updates
+
 ### Changed
 - Minimum supported Rust version corrected from 1.74 to 1.86 — the actual floor of the current dependency tree — and now enforced by a dedicated CI job
 
