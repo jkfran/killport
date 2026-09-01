@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-09-01
+
+### Dependencies
+
+- build(deps): bump log in the cargo-minor-patch group (#56)
+- build(deps): bump bollard in the cargo-minor-patch group (#55)
+- build(deps): bump clap_mangen in the cargo-minor-patch group (#54)
+- build(deps): bump the cargo-minor-patch group with 3 updates (#53)
+- Updating aho-corasick v1.1.4 -> v1.1.5
+- Updating android_system_properties v0.1.5 -> v0.1.6
+- Updating bstr v1.13.0 -> v1.13.1
+- Updating cc v1.4.0 -> v1.4.4
+- Updating crc32fast v1.5.0 -> v1.5.1
+- Updating either v1.17.0 -> v1.18.0
+- Updating find-msvc-tools v0.1.9 -> v0.1.11
+- Updating flate2 v1.1.9 -> v1.1.10
+- Updating futures-channel v0.3.33 -> v0.3.34
+- Updating futures-core v0.3.33 -> v0.3.34
+- Updating futures-macro v0.3.33 -> v0.3.34
+- Updating futures-sink v0.3.33 -> v0.3.34
+- Updating futures-task v0.3.33 -> v0.3.34
+- Updating futures-util v0.3.33 -> v0.3.34
+- Updating http-body-util v0.1.4 -> v0.1.5
+- Updating hyper v1.11.0 -> v1.11.1
+- Updating icu_collections v2.2.0 -> v2.3.0
+- Updating icu_locale_core v2.2.0 -> v2.3.0
+- Updating icu_normalizer v2.2.0 -> v2.3.0
+- Updating icu_normalizer_data v2.2.0 -> v2.3.0
+- Updating icu_properties v2.2.0 -> v2.3.0
+- Updating icu_properties_data v2.2.0 -> v2.3.0
+- Updating icu_provider v2.2.0 -> v2.3.1
+- Updating js-sys v0.3.103 -> v0.3.104
+- Updating litemap v0.8.2 -> v0.8.3
+- Updating miniz_oxide v0.8.9 -> v0.9.1
+- Updating portable-atomic v1.14.0 -> v1.15.0
+- Updating potential_utf v0.1.5 -> v0.1.6
+- Updating regex-automata v0.4.16 -> v0.4.18
+- Updating syn v3.0.3 -> v3.0.4
+- Updating thiserror v2.0.19 -> v2.0.20
+- Updating thiserror-impl v2.0.19 -> v2.0.20
+- Updating tinystr v0.8.3 -> v0.8.4
+- Updating wasm-bindgen v0.2.126 -> v0.2.127
+- Updating wasm-bindgen-macro v0.2.126 -> v0.2.127
+- Updating wasm-bindgen-macro-support v0.2.126 -> v0.2.127
+- Updating wasm-bindgen-shared v0.2.126 -> v0.2.127
+- Updating writeable v0.6.3 -> v0.6.4
+- Updating zerotrie v0.2.4 -> v0.2.5
+- Updating zerovec v0.11.6 -> v0.11.8
+- ...and 2 more transitive updates
+
 ## [2.0.2] - 2026-08-01
 
 ### Dependencies
